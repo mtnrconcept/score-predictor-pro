@@ -13,6 +13,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { AppHeader } from "@/components/AppHeader";
 import { LegalBanner } from "@/components/LegalBanner";
+import { Toaster } from "sonner";
 
 function NotFoundComponent() {
   return (
