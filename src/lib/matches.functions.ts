@@ -4,6 +4,69 @@ import { MAJOR_LEAGUES, SPORTS, sportFromKey, sportFromTsdb, type SportKey } fro
 
 const TSDB_KEY = "3"; // free public test key
 
+export interface H2HEvent {
+  id: string;
+  date: string | null;
+  league: string;
+  homeTeam: string;
+  awayTeam: string;
+  homeScore: string | null;
+  awayScore: string | null;
+  season: string | null;
+}
+
+export interface H2HStats {
+  played: number;
+  homeWins: number;
+  awayWins: number;
+  draws: number;
+  homeWinRate: number;
+  awayWinRate: number;
+  drawRate: number;
+  events: H2HEvent[];
+}
+
+export async function fetchHeadToHead(matchId: string, homeTeam: string, awayTeam: string): Promise<H2HStats> {
+  const url = `https://www.thesportsdb.com/api/v1/json/${TSDB_KEY}/eventsh2h.php?id=${encodeURIComponent(matchId)}`;
+  const data = await fetchJson<{ events: any[] | null }>(url);
+  const raw = data?.events ?? [];
+  const events: H2HEvent[] = raw.map((e: any) => ({
+    id: e.idEvent,
+    date: e.dateEvent ?? null,
+    league: e.strLeague ?? "",
+    homeTeam: e.strHomeTeam,
+    awayTeam: e.strAwayTeam,
+    homeScore: e.intHomeScore,
+    awayScore: e.intAwayScore,
+    season: e.strSeason ?? null,
+  }));
+  let homeWins = 0, awayWins = 0, draws = 0, played = 0;
+  const norm = (s: string) => s.toLowerCase().trim();
+  const H = norm(homeTeam), A = norm(awayTeam);
+  for (const e of events) {
+    const hs = e.homeScore != null ? parseInt(e.homeScore, 10) : NaN;
+    const as = e.awayScore != null ? parseInt(e.awayScore, 10) : NaN;
+    if (Number.isNaN(hs) || Number.isNaN(as)) continue;
+    played++;
+    const eh = norm(e.homeTeam), ea = norm(e.awayTeam);
+    const winner = hs > as ? eh : as > hs ? ea : null;
+    if (!winner) draws++;
+    else if (winner === H) homeWins++;
+    else if (winner === A) awayWins++;
+  }
+  const rate = (n: number) => (played ? Math.round((n / played) * 1000) / 10 : 0);
+  return {
+    played,
+    homeWins,
+    awayWins,
+    draws,
+    homeWinRate: rate(homeWins),
+    awayWinRate: rate(awayWins),
+    drawRate: rate(draws),
+    events: events.slice(0, 10),
+  };
+}
+
 export interface MatchSummary {
   id: string;
   sport: SportKey;
