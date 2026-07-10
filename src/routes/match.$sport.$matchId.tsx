@@ -314,7 +314,62 @@ function PredictionView({ p, homeTeam, awayTeam }: { p: Prediction; homeTeam: st
       {/* H2H */}
       {p.headToHead && (
         <Card title="Confrontations directes">
-          <p className="text-sm text-muted-foreground">{p.headToHead}</p>
+          <div className="space-y-3 text-sm">
+            <p className="text-muted-foreground">{p.headToHead.summary}</p>
+            {p.headToHead.matchesAnalyzed > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded border border-border bg-surface/40 p-2 text-center">
+                  <div className="text-xs text-muted-foreground">Dom. gagne</div>
+                  <div className="text-lg font-bold text-primary">{p.headToHead.homeWinRate}%</div>
+                </div>
+                <div className="rounded border border-border bg-surface/40 p-2 text-center">
+                  <div className="text-xs text-muted-foreground">Nul</div>
+                  <div className="text-lg font-bold">{p.headToHead.drawRate}%</div>
+                </div>
+                <div className="rounded border border-border bg-surface/40 p-2 text-center">
+                  <div className="text-xs text-muted-foreground">Ext. gagne</div>
+                  <div className="text-lg font-bold text-primary">{p.headToHead.awayWinRate}%</div>
+                </div>
+              </div>
+            )}
+            {p.headToHead.matchesAnalyzed > 0 && (
+              <div className="text-xs text-muted-foreground">Basé sur {p.headToHead.matchesAnalyzed} confrontation(s) passée(s)</div>
+            )}
+            {p.headToHead.keyPastMatches.length > 0 && (
+              <div>
+                <div className="mb-1 text-xs font-semibold uppercase text-muted-foreground">Matchs marquants</div>
+                <ul className="space-y-1">
+                  {p.headToHead.keyPastMatches.map((m, i) => <li key={i}>• {m}</li>)}
+                </ul>
+              </div>
+            )}
+            {p.headToHead.decisivePlayers.length > 0 && (
+              <div>
+                <div className="mb-1 text-xs font-semibold uppercase text-muted-foreground">Joueurs décisifs dans ces confrontations</div>
+                <ul className="space-y-1">
+                  {p.headToHead.decisivePlayers.map((pl, i) => (
+                    <li key={i}><span className="font-medium">{pl.name}</span> <span className="text-muted-foreground">({pl.team})</span> — {pl.impact}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {p.headToHead.strengthsWhenWinning.length > 0 && (
+              <div>
+                <div className="mb-1 text-xs font-semibold uppercase text-emerald-500">Forces lors des victoires</div>
+                <ul className="space-y-1">
+                  {p.headToHead.strengthsWhenWinning.map((s, i) => <li key={i}>+ {s}</li>)}
+                </ul>
+              </div>
+            )}
+            {p.headToHead.weaknessesWhenLosing.length > 0 && (
+              <div>
+                <div className="mb-1 text-xs font-semibold uppercase text-red-500">Faiblesses lors des défaites</div>
+                <ul className="space-y-1">
+                  {p.headToHead.weaknessesWhenLosing.map((w, i) => <li key={i}>− {w}</li>)}
+                </ul>
+              </div>
+            )}
+          </div>
         </Card>
       )}
 
