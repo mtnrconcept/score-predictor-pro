@@ -14,7 +14,93 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      predictions_cache: {
+        Row: {
+          generated_at: string
+          match_id: string
+          prediction: Json
+          sport: string
+        }
+        Insert: {
+          generated_at?: string
+          match_id: string
+          prediction: Json
+          sport: string
+        }
+        Update: {
+          generated_at?: string
+          match_id?: string
+          prediction?: Json
+          sport?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      saved_predictions: {
+        Row: {
+          away_team: string
+          competition: string | null
+          created_at: string
+          home_team: string
+          id: string
+          match_id: string
+          match_start: string | null
+          prediction: Json
+          sport: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          away_team: string
+          competition?: string | null
+          created_at?: string
+          home_team: string
+          id?: string
+          match_id: string
+          match_start?: string | null
+          prediction: Json
+          sport: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          away_team?: string
+          competition?: string | null
+          created_at?: string
+          home_team?: string
+          id?: string
+          match_id?: string
+          match_start?: string | null
+          prediction?: Json
+          sport?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
