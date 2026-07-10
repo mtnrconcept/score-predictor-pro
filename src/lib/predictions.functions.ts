@@ -73,7 +73,7 @@ const PredictionSchema = z.object({
 
 export type Prediction = z.infer<typeof PredictionSchema>;
 
-async function callAi(matchContext: string, newsContext: string): Promise<Prediction> {
+async function callAi(matchContext: string, newsContext: string, h2hContext: string): Promise<Prediction> {
   const apiKey = process.env.LOVABLE_API_KEY;
   if (!apiKey) throw new Error("LOVABLE_API_KEY manquante");
 
@@ -82,16 +82,21 @@ async function callAi(matchContext: string, newsContext: string): Promise<Predic
 
   const system = `Tu es un analyste sportif expert en pronostics.
 - Réponds en français.
-- Utilise en priorité les ACTUALITÉS FOURNIES pour repérer blessures, suspensions, forme récente, compositions probables.
-- Base-toi aussi sur ta connaissance des équipes/joueurs, confrontations et dynamiques.
-- Toutes les probabilités doivent être en pourcentages 0-100 et les 3 issues (home/draw/away) doivent sommer environ 100.
+- Analyse en priorité les CONFRONTATIONS DIRECTES fournies : taux de victoire/défaite/nul, joueurs présents lors des victoires vs défaites, tendances récurrentes.
+- Identifie les FORCES mises en avant lors des victoires (attaque, milieu, transitions, physique, tactique...) ET les FAIBLESSES exploitées lors des défaites.
+- Croise avec les ACTUALITÉS pour blessures, suspensions, forme récente, compositions probables.
+- Toutes les probabilités doivent être en pourcentages 0-100 ; les 3 issues (home/draw/away) somment ~100.
 - Si le sport ne connaît pas le nul (tennis, MMA, basket, NFL, hockey régulier avec prolongation), mets drawProb à 0.
 - confidence = score global 0-100.
-- Dans "sources", cite les URLs des actualités que tu as réellement exploitées (max 5).
+- "headToHead.homeWinRate/awayWinRate/drawRate/matchesAnalyzed" DOIVENT reprendre exactement les valeurs numériques H2H fournies (ou 0 si aucune donnée).
+- "headToHead.decisivePlayers" : joueurs qui ont fait la différence dans les H2H passées (buteurs, gardiens décisifs, meneurs...).
+- "headToHead.strengthsWhenWinning" : ce qui fonctionne pour l'équipe quand elle gagne ces H2H.
+- "headToHead.weaknessesWhenLosing" : ce qui pèche quand elle perd ces H2H.
+- Dans "sources", cite les URLs des actualités réellement exploitées (max 5).
 - Rappelle dans "disclaimer" que ce sont des estimations informatives, pas des conseils, et que les paris comportent des risques (18+).
-- Sois concret : cite des joueurs réels quand tu les connais ou qu'ils apparaissent dans les news, sinon reste générique et honnête.`;
+- Sois concret : cite des joueurs réels quand tu les connais ou qu'ils apparaissent dans les news, sinon reste honnête ("données insuffisantes").`;
 
-  const prompt = `MATCH :\n${matchContext}\n\n${newsContext ? `ACTUALITÉS RÉCENTES (dernière semaine) :\n${newsContext}\n\n` : ""}Fournis un pronostic complet et structuré couvrant tous les marchés proposés par les grands sites de paris.`;
+  const prompt = `MATCH :\n${matchContext}\n\n${h2hContext ? `CONFRONTATIONS DIRECTES (données brutes) :\n${h2hContext}\n\n` : ""}${newsContext ? `ACTUALITÉS RÉCENTES :\n${newsContext}\n\n` : ""}Fournis un pronostic complet et structuré couvrant tous les marchés proposés par les grands sites de paris.`;
 
   try {
     const { output } = await generateText({
@@ -107,6 +112,21 @@ async function callAi(matchContext: string, newsContext: string): Promise<Predic
     }
     throw error;
   }
+}
+
+function formatH2H(h2h: H2HStats, homeTeam: string, awayTeam: string): string {
+  if (!h2h.played) return "";
+  return [
+    `Confrontations analysées : ${h2h.played}`,
+    `Victoires ${homeTeam} : ${h2h.homeWins} (${h2h.homeWinRate}%)`,
+    `Victoires ${awayTeam} : ${h2h.awayWins} (${h2h.awayWinRate}%)`,
+    `Nuls : ${h2h.draws} (${h2h.drawRate}%)`,
+    "",
+    "Historique récent :",
+    ...h2h.events.map(
+      (e) => `- ${e.date ?? "?"} [${e.league}] ${e.homeTeam} ${e.homeScore ?? "?"}-${e.awayScore ?? "?"} ${e.awayTeam}`,
+    ),
+  ].join("\n");
 }
 
 export const generatePrediction = createServerFn({ method: "POST" })
@@ -133,20 +153,23 @@ export const generatePrediction = createServerFn({ method: "POST" })
     const detail = await getMatchDetail({ data: { matchId: data.matchId } });
     const m = detail.match;
 
-    // Firecrawl : recherches parallèles pour enrichir le contexte
     const teamsQuery = `${m.homeTeam} vs ${m.awayTeam}`;
-    const [newsGeneral, newsInjuries, newsFormHome, newsFormAway] = await Promise.all([
+    const [h2h, newsGeneral, newsInjuries, newsFormHome, newsFormAway, newsH2H] = await Promise.all([
+      fetchHeadToHead(data.matchId, m.homeTeam, m.awayTeam),
       searchMatchContext(`${teamsQuery} ${m.competition} preview pronostic`, { limit: 4 }),
       searchMatchContext(`${m.homeTeam} ${m.awayTeam} blessés suspensions absents compos probables`, { limit: 4 }),
       searchMatchContext(`${m.homeTeam} forme actuelle derniers matchs résultats`, { limit: 3 }),
       searchMatchContext(`${m.awayTeam} forme actuelle derniers matchs résultats`, { limit: 3 }),
+      searchMatchContext(`${teamsQuery} head to head historique confrontations buteurs statistiques`, { limit: 4 }),
     ]);
     const newsContext = formatSnippetsForPrompt([
       ...newsGeneral,
       ...newsInjuries,
       ...newsFormHome,
       ...newsFormAway,
+      ...newsH2H,
     ]);
+    const h2hContext = formatH2H(h2h, m.homeTeam, m.awayTeam);
 
     const ctx = [
       `Sport : ${m.sportLabel}`,
@@ -160,7 +183,16 @@ export const generatePrediction = createServerFn({ method: "POST" })
       .filter(Boolean)
       .join("\n");
 
-    const prediction = await callAi(ctx, newsContext);
+    const prediction = await callAi(ctx, newsContext, h2hContext);
+
+    // Force les valeurs numériques H2H mesurées
+    prediction.headToHead = {
+      ...prediction.headToHead,
+      homeWinRate: h2h.homeWinRate,
+      awayWinRate: h2h.awayWinRate,
+      drawRate: h2h.drawRate,
+      matchesAnalyzed: h2h.played,
+    };
 
     await supabaseAdmin.from("predictions_cache").upsert({
       match_id: data.matchId,
