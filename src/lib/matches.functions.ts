@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { SPORTS, sportFromKey, sportFromTsdb, type SportKey } from "./sports";
+import { MAJOR_LEAGUES, SPORTS, sportFromKey, sportFromTsdb, type SportKey } from "./sports";
 
 const TSDB_KEY = "3"; // free public test key
 
@@ -62,17 +62,27 @@ function mapEvent(e: TsdbEvent): MatchSummary {
   };
 }
 
-async function fetchEventsForSport(sportTsdb: string, date: string): Promise<TsdbEvent[]> {
-  const url = `https://www.thesportsdb.com/api/v1/json/${TSDB_KEY}/eventsday.php?d=${date}&s=${encodeURIComponent(sportTsdb)}`;
+async function fetchJson<T>(url: string): Promise<T | null> {
   try {
     const res = await fetch(url, { headers: { accept: "application/json" } });
-    if (!res.ok) return [];
-    const data = (await res.json()) as { events: TsdbEvent[] | null };
-    return data.events ?? [];
+    if (!res.ok) return null;
+    return (await res.json()) as T;
   } catch (err) {
-    console.error("TSDB fetch failed", sportTsdb, date, err);
-    return [];
+    console.error("TSDB fetch failed", url, err);
+    return null;
   }
+}
+
+async function fetchEventsForSportDay(sportTsdb: string, date: string): Promise<TsdbEvent[]> {
+  const url = `https://www.thesportsdb.com/api/v1/json/${TSDB_KEY}/eventsday.php?d=${date}&s=${encodeURIComponent(sportTsdb)}`;
+  const data = await fetchJson<{ events: TsdbEvent[] | null }>(url);
+  return data?.events ?? [];
+}
+
+async function fetchNextEventsForLeague(leagueId: string): Promise<TsdbEvent[]> {
+  const url = `https://www.thesportsdb.com/api/v1/json/${TSDB_KEY}/eventsnextleague.php?id=${leagueId}`;
+  const data = await fetchJson<{ events: TsdbEvent[] | null }>(url);
+  return data?.events ?? [];
 }
 
 function isoDate(offsetDays: number): string {
@@ -81,45 +91,68 @@ function isoDate(offsetDays: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+function dedupe(events: TsdbEvent[]): TsdbEvent[] {
+  const seen = new Set<string>();
+  const out: TsdbEvent[] = [];
+  for (const e of events) {
+    if (!e?.idEvent || seen.has(e.idEvent)) continue;
+    seen.add(e.idEvent);
+    out.push(e);
+  }
+  return out;
+}
+
 export const listMatches = createServerFn({ method: "GET" })
   .inputValidator((input: unknown) =>
     z
       .object({
         sport: z.string().optional(),
-        days: z.number().int().min(1).max(4).optional(),
+        days: z.number().int().min(1).max(7).optional(),
       })
       .parse(input ?? {}),
   )
   .handler(async ({ data }) => {
-    const days = data.days ?? 2;
-    const targets = data.sport
-      ? SPORTS.filter((s) => s.key === data.sport)
-      : SPORTS.slice(0, 5); // limit default fanout
+    const days = data.days ?? 3;
+    const sportsList = data.sport ? SPORTS.filter((s) => s.key === data.sport) : SPORTS;
+    const leagues = data.sport
+      ? MAJOR_LEAGUES.filter((l) => l.sport === data.sport)
+      : MAJOR_LEAGUES;
 
+    // Fanout: matchs du jour + prochains matchs des grandes compétitions
     const dateOffsets = Array.from({ length: days }, (_, i) => i);
-    const results = await Promise.all(
-      targets.flatMap((s) => dateOffsets.map((off) => fetchEventsForSport(s.tsdb, isoDate(off)))),
-    );
-    const events = results.flat().map(mapEvent);
+    const dayCalls = sportsList.flatMap((s) => dateOffsets.map((off) => fetchEventsForSportDay(s.tsdb, isoDate(off))));
+    const leagueCalls = leagues.map((l) => fetchNextEventsForLeague(l.id));
 
-    // Sort: live-ish first, then by time asc
-    events.sort((a, b) => {
+    const results = await Promise.all([...dayCalls, ...leagueCalls]);
+    const raw = dedupe(results.flat());
+    const events = raw.map(mapEvent);
+
+    // Filtre : futur proche (≤ 21j) ou en cours / juste fini (< 6h)
+    const now = Date.now();
+    const future = 1000 * 60 * 60 * 24 * 21;
+    const past = 1000 * 60 * 60 * 6;
+    const filtered = events.filter((e) => {
+      if (!e.startTime) return true;
+      const t = Date.parse(e.startTime);
+      if (Number.isNaN(t)) return true;
+      return t > now - past && t < now + future;
+    });
+
+    filtered.sort((a, b) => {
       const ta = a.startTime ? Date.parse(a.startTime) : Infinity;
       const tb = b.startTime ? Date.parse(b.startTime) : Infinity;
       return ta - tb;
     });
 
-    return { matches: events, fetchedAt: new Date().toISOString() };
+    return { matches: filtered, fetchedAt: new Date().toISOString() };
   });
 
 export const getMatchDetail = createServerFn({ method: "GET" })
   .inputValidator((input: unknown) => z.object({ matchId: z.string().min(1) }).parse(input))
   .handler(async ({ data }) => {
     const url = `https://www.thesportsdb.com/api/v1/json/${TSDB_KEY}/lookupevent.php?id=${encodeURIComponent(data.matchId)}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("Match introuvable");
-    const json = (await res.json()) as { events: TsdbEvent[] | null };
-    const raw = json.events?.[0];
+    const json = await fetchJson<{ events: TsdbEvent[] | null }>(url);
+    const raw = json?.events?.[0];
     if (!raw) throw new Error("Match introuvable");
     return {
       match: mapEvent(raw),

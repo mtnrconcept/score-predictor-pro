@@ -4,6 +4,7 @@ import { z } from "zod";
 import { generateText, Output, NoObjectGeneratedError } from "ai";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
 import { getMatchDetail } from "./matches.functions";
+import { searchMatchContext, formatSnippetsForPrompt } from "./firecrawl.server";
 
 const PredictionSchema = z.object({
   outcome: z.object({
@@ -48,6 +49,7 @@ const PredictionSchema = z.object({
   keyFactors: z.array(z.string()),
   injuriesAndAbsences: z.array(z.string()),
   headToHead: z.string(),
+  sources: z.array(z.string()),
   confidence: z.number(),
   summary: z.string(),
   disclaimer: z.string(),
@@ -55,23 +57,25 @@ const PredictionSchema = z.object({
 
 export type Prediction = z.infer<typeof PredictionSchema>;
 
-async function callAi(matchContext: string): Promise<Prediction> {
+async function callAi(matchContext: string, newsContext: string): Promise<Prediction> {
   const apiKey = process.env.LOVABLE_API_KEY;
   if (!apiKey) throw new Error("LOVABLE_API_KEY manquante");
 
   const gateway = createLovableAiGatewayProvider(apiKey, { structuredOutputs: true });
-  const model = gateway("openai/gpt-5.5");
+  const model = gateway("openai/gpt-5.5-pro");
 
-  const system = `Tu es un analyste sportif expert en pronostics. Tu produis des analyses structurées et honnêtes.
+  const system = `Tu es un analyste sportif expert en pronostics.
 - Réponds en français.
-- Base-toi sur ta connaissance des équipes/joueurs, de la forme récente, des confrontations et des dynamiques.
-- Toutes les probabilités doivent être des pourcentages entre 0 et 100 et les 3 issues (home/draw/away) doivent sommer environ 100.
-- Si le sport ne connaît pas le nul (tennis, MMA, basket), mets drawProb à 0.
-- confidence est un score global 0-100.
-- Rappelle dans "disclaimer" que ce sont des estimations informatives, pas des conseils financiers, et que les paris comportent des risques (18+).
-- Sois concret : cite des joueurs réels quand tu les connais, sinon reste générique et honnête.`;
+- Utilise en priorité les ACTUALITÉS FOURNIES pour repérer blessures, suspensions, forme récente, compositions probables.
+- Base-toi aussi sur ta connaissance des équipes/joueurs, confrontations et dynamiques.
+- Toutes les probabilités doivent être en pourcentages 0-100 et les 3 issues (home/draw/away) doivent sommer environ 100.
+- Si le sport ne connaît pas le nul (tennis, MMA, basket, NFL, hockey régulier avec prolongation), mets drawProb à 0.
+- confidence = score global 0-100.
+- Dans "sources", cite les URLs des actualités que tu as réellement exploitées (max 5).
+- Rappelle dans "disclaimer" que ce sont des estimations informatives, pas des conseils, et que les paris comportent des risques (18+).
+- Sois concret : cite des joueurs réels quand tu les connais ou qu'ils apparaissent dans les news, sinon reste générique et honnête.`;
 
-  const prompt = `Analyse ce match et fournis un pronostic complet et structuré :\n\n${matchContext}`;
+  const prompt = `MATCH :\n${matchContext}\n\n${newsContext ? `ACTUALITÉS RÉCENTES (dernière semaine) :\n${newsContext}\n\n` : ""}Fournis un pronostic complet et structuré couvrant tous les marchés proposés par les grands sites de paris.`;
 
   try {
     const { output } = await generateText({
@@ -96,7 +100,6 @@ export const generatePrediction = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    // Cache lookup
     if (!data.force) {
       const { data: cached } = await supabaseAdmin
         .from("predictions_cache")
@@ -113,6 +116,22 @@ export const generatePrediction = createServerFn({ method: "POST" })
 
     const detail = await getMatchDetail({ data: { matchId: data.matchId } });
     const m = detail.match;
+
+    // Firecrawl : recherches parallèles pour enrichir le contexte
+    const teamsQuery = `${m.homeTeam} vs ${m.awayTeam}`;
+    const [newsGeneral, newsInjuries, newsFormHome, newsFormAway] = await Promise.all([
+      searchMatchContext(`${teamsQuery} ${m.competition} preview pronostic`, { limit: 4 }),
+      searchMatchContext(`${m.homeTeam} ${m.awayTeam} blessés suspensions absents compos probables`, { limit: 4 }),
+      searchMatchContext(`${m.homeTeam} forme actuelle derniers matchs résultats`, { limit: 3 }),
+      searchMatchContext(`${m.awayTeam} forme actuelle derniers matchs résultats`, { limit: 3 }),
+    ]);
+    const newsContext = formatSnippetsForPrompt([
+      ...newsGeneral,
+      ...newsInjuries,
+      ...newsFormHome,
+      ...newsFormAway,
+    ]);
+
     const ctx = [
       `Sport : ${m.sportLabel}`,
       `Compétition : ${m.competition}`,
@@ -120,21 +139,19 @@ export const generatePrediction = createServerFn({ method: "POST" })
       m.venue ? `Lieu : ${m.venue}` : "",
       m.startTime ? `Date : ${m.startTime}` : "",
       m.status ? `Statut : ${m.status}` : "",
-      detail.description ? `Contexte : ${detail.description.slice(0, 1200)}` : "",
+      detail.description ? `Contexte historique : ${detail.description.slice(0, 800)}` : "",
     ]
       .filter(Boolean)
       .join("\n");
 
-    const prediction = await callAi(ctx);
+    const prediction = await callAi(ctx, newsContext);
 
-    await supabaseAdmin
-      .from("predictions_cache")
-      .upsert({
-        match_id: data.matchId,
-        sport: m.sport,
-        prediction,
-        generated_at: new Date().toISOString(),
-      });
+    await supabaseAdmin.from("predictions_cache").upsert({
+      match_id: data.matchId,
+      sport: m.sport,
+      prediction,
+      generated_at: new Date().toISOString(),
+    });
 
     return { prediction, cached: false };
   });
