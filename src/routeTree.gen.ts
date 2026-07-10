@@ -9,38 +9,95 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedMyPredictionsRouteImport } from './routes/_authenticated/my-predictions'
+import { Route as MatchSportMatchIdRouteImport } from './routes/match.$sport.$matchId'
 
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedMyPredictionsRoute =
+  AuthenticatedMyPredictionsRouteImport.update({
+    id: '/my-predictions',
+    path: '/my-predictions',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const MatchSportMatchIdRoute = MatchSportMatchIdRouteImport.update({
+  id: '/match/$sport/$matchId',
+  path: '/match/$sport/$matchId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/my-predictions': typeof AuthenticatedMyPredictionsRoute
+  '/match/$sport/$matchId': typeof MatchSportMatchIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/my-predictions': typeof AuthenticatedMyPredictionsRoute
+  '/match/$sport/$matchId': typeof MatchSportMatchIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/_authenticated/my-predictions': typeof AuthenticatedMyPredictionsRoute
+  '/match/$sport/$matchId': typeof MatchSportMatchIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/auth' | '/my-predictions' | '/match/$sport/$matchId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/auth' | '/my-predictions' | '/match/$sport/$matchId'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/_authenticated/my-predictions'
+    | '/match/$sport/$matchId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
+  MatchSportMatchIdRoute: typeof MatchSportMatchIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +105,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/my-predictions': {
+      id: '/_authenticated/my-predictions'
+      path: '/my-predictions'
+      fullPath: '/my-predictions'
+      preLoaderRoute: typeof AuthenticatedMyPredictionsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/match/$sport/$matchId': {
+      id: '/match/$sport/$matchId'
+      path: '/match/$sport/$matchId'
+      fullPath: '/match/$sport/$matchId'
+      preLoaderRoute: typeof MatchSportMatchIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedMyPredictionsRoute: typeof AuthenticatedMyPredictionsRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedMyPredictionsRoute: AuthenticatedMyPredictionsRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
+  MatchSportMatchIdRoute: MatchSportMatchIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
