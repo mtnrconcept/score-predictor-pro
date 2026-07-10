@@ -115,6 +115,7 @@ function RootComponent() {
         </main>
         <LegalBanner />
       </div>
+      <Toaster theme="dark" position="top-right" />
     </QueryClientProvider>
   );
 }
