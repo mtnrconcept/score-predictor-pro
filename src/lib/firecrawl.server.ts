@@ -27,10 +27,9 @@ export async function searchMatchContext(query: string, opts?: { limit?: number;
   try {
     const result: any = await client.search(query, {
       limit,
-      lang: "fr",
       tbs: "qdr:w", // dernière semaine
-      scrapeOptions: opts?.withContent ? { formats: ["markdown"] } : undefined,
-    });
+      ...(opts?.withContent ? { scrapeOptions: { formats: ["markdown"] } } : {}),
+    } as any);
     const items: any[] = Array.isArray(result?.web)
       ? result.web
       : Array.isArray(result?.data)
