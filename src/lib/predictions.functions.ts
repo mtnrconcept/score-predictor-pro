@@ -3,7 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { generateText, Output, NoObjectGeneratedError } from "ai";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
-import { getMatchDetail } from "./matches.functions";
+import { getMatchDetail, fetchHeadToHead, type H2HStats } from "./matches.functions";
 import { searchMatchContext, formatSnippetsForPrompt } from "./firecrawl.server";
 
 const PredictionSchema = z.object({
