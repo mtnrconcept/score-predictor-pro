@@ -198,44 +198,66 @@ environ 100. Réduis confiance et qualité si des données manquent et utilise a
 Analyse toutes les rencontres confirmées correspondant à la demande; si le calendrier n'est pas encore
 défini, explique-le. Réponds en français et rappelle qu'un pronostic n'est jamais une garantie.`;
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${apiKey}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      store: false,
-      reasoning: { effort: "high" },
-      tools: [
-        {
-          type: "web_search",
-          search_context_size: "high",
-        },
-      ],
-      tool_choice: "auto",
-      input: [
-        { role: "system", content: system },
-        {
-          role: "user",
-          content: `Date UTC : ${
-            new Date().toISOString()
-          }\n\nDemande : ${request}`,
-        },
-      ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "sports_research",
-          strict: true,
-          schema,
-        },
+  let response: Response;
+  try {
+    response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      signal: AbortSignal.timeout(110_000),
+      headers: {
+        authorization: `Bearer ${apiKey}`,
+        "content-type": "application/json",
       },
-    }),
-  });
+      body: JSON.stringify({
+        model,
+        store: false,
+        max_output_tokens: 10_000,
+        reasoning: { effort: "medium" },
+        tools: [
+          {
+            type: "web_search",
+            search_context_size: "medium",
+          },
+        ],
+        tool_choice: "auto",
+        input: [
+          { role: "system", content: system },
+          {
+            role: "user",
+            content: `Date UTC : ${
+              new Date().toISOString()
+            }\n\nDemande : ${request}`,
+          },
+        ],
+        text: {
+          format: {
+            type: "json_schema",
+            name: "sports_research",
+            strict: true,
+            schema,
+          },
+        },
+      }),
+    });
+  } catch (error) {
+    const timedOut = error instanceof DOMException && error.name === "TimeoutError";
+    console.error("OpenAI sports research transport failed", {
+      kind: timedOut ? "timeout" : "network",
+    });
+    return json({
+      error: timedOut
+        ? "L'analyse a dépassé 110 secondes. Réduis le nombre de matchs demandé."
+        : "La connexion entre Supabase et OpenAI a échoué. Réessaie.",
+    }, timedOut ? 504 : 502);
+  }
 
-  const payload = await response.json();
+  const rawPayload = await response.text();
+  let payload: any;
+  try {
+    payload = JSON.parse(rawPayload);
+  } catch {
+    console.error("OpenAI returned a non-JSON response", { status: response.status });
+    return json({ error: "OpenAI a retourné une réponse réseau invalide." }, 502);
+  }
   if (!response.ok) {
     console.error("OpenAI sports research failed", {
       status: response.status,
@@ -247,6 +269,8 @@ défini, explique-le. Réponds en français et rappelle qu'un pronostic n'est ja
       ? "Le quota ou la limite de débit OpenAI est atteint."
       : payload?.error?.code === "model_not_found"
       ? `Le modèle OpenAI ${model} n'est pas accessible avec ce projet.`
+      : response.status === 400
+      ? `La requête OpenAI est incompatible (${payload?.error?.code || "invalid_request"}).`
       : "L'analyse OpenAI a échoué. Réessaie dans quelques instants.";
     return json({ error: message }, response.status === 401 ? 401 : 502);
   }
