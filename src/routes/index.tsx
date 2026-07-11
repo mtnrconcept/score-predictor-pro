@@ -6,6 +6,7 @@ import { MatchCard } from "@/components/MatchCard";
 import { SPORTS } from "@/lib/sports";
 import { Loader2, Search, TrendingUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { SportsResearchAgent } from "@/components/SportsResearchAgent";
 
 export const Route = createFileRoute("/")({
   component: HomePage,
@@ -41,6 +42,7 @@ function HomePage() {
 
   return (
     <div className="grid-bg">
+      <SportsResearchAgent />
       <section className="border-b border-border">
         <div className="mx-auto max-w-7xl px-4 py-10">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-primary">
@@ -72,7 +74,12 @@ function HomePage() {
 
       <section className="border-b border-border bg-background/50">
         <div className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 py-3">
-          <SportChip label="Tous" active={sport === "all"} onClick={() => setSport("all")} emoji="🏟️" />
+          <SportChip
+            label="Tous"
+            active={sport === "all"}
+            onClick={() => setSport("all")}
+            emoji="🏟️"
+          />
           {SPORTS.map((s) => (
             <SportChip
               key={s.key}
@@ -93,7 +100,9 @@ function HomePage() {
         ) : isError ? (
           <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-6 text-sm text-destructive-foreground">
             Erreur : {(error as Error).message}
-            <button onClick={() => refetch()} className="ml-3 underline">Réessayer</button>
+            <button onClick={() => refetch()} className="ml-3 underline">
+              Réessayer
+            </button>
           </div>
         ) : matches.length === 0 ? (
           <div className="py-24 text-center text-muted-foreground">
@@ -120,7 +129,17 @@ function HomePage() {
   );
 }
 
-function SportChip({ label, emoji, active, onClick }: { label: string; emoji: string; active: boolean; onClick: () => void }) {
+function SportChip({
+  label,
+  emoji,
+  active,
+  onClick,
+}: {
+  label: string;
+  emoji: string;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       onClick={onClick}
