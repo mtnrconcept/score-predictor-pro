@@ -33,7 +33,9 @@ async function resolveApiKey(req: Request): Promise<string | null> {
   const userClient = createClient(url, anonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data: userData, error: userError } = await userClient.auth.getUser(token);
+  const { data: userData, error: userError } = await userClient.auth.getUser(
+    token,
+  );
   if (userError || !userData.user) return null;
 
   const admin = createClient(url, serviceKey, {
