@@ -176,7 +176,7 @@ Deno.serve(async (req: Request) => {
     }, 400);
   }
 
-  const model = Deno.env.get("OPENAI_RESEARCH_MODEL") || "gpt-5.6-sol";
+  const model = Deno.env.get("OPENAI_RESEARCH_MODEL") || "gpt-5.5";
   const system =
     `Tu es l'agent de recherche football d'OddsIQ. Transforme la demande en analyse
 factuelle, récente, sourcée et structurée. Utilise la recherche web pour identifier tous les matchs
@@ -197,12 +197,11 @@ défini, explique-le. Réponds en français et rappelle qu'un pronostic n'est ja
     body: JSON.stringify({
       model,
       store: false,
-      reasoning: { effort: "max" },
+      reasoning: { effort: "high" },
       tools: [
         {
           type: "web_search",
           search_context_size: "high",
-          return_token_budget: "unlimited",
         },
       ],
       tool_choice: "auto",
@@ -236,6 +235,8 @@ défini, explique-le. Réponds en français et rappelle qu'un pronostic n'est ja
       ? "La clé OpenAI configurée dans Supabase est invalide ou révoquée."
       : response.status === 429
       ? "Le quota ou la limite de débit OpenAI est atteint."
+      : payload?.error?.code === "model_not_found"
+      ? `Le modèle OpenAI ${model} n'est pas accessible avec ce projet.`
       : "L'analyse OpenAI a échoué. Réessaie dans quelques instants.";
     return json({ error: message }, response.status === 401 ? 401 : 502);
   }

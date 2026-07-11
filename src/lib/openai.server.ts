@@ -105,7 +105,7 @@ export async function generateOpenAiPrediction(
   context: OpenAiPredictionContext,
 ): Promise<Prediction> {
   const openai = new OpenAI({ apiKey: context.apiKey, timeout: 120_000, maxRetries: 2 });
-  const model = process.env.OPENAI_MODEL || "gpt-5.6-sol";
+  const model = process.env.OPENAI_MODEL || "gpt-5.5";
   const safetyIdentifier = createHash("sha256").update(context.userId).digest("hex").slice(0, 32);
 
   const system = `Tu es l'analyste éditorial d'un moteur de pronostic sportif.

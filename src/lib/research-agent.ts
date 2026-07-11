@@ -11,7 +11,7 @@ export async function runSportsResearch(request: string) {
 
   const { data: auth } = await supabase.auth.getSession();
   if (!auth.session) {
-    throw new Error("Connecte-toi pour lancer une analyse GPT-5.6.");
+    throw new Error("Connecte-toi pour lancer une analyse GPT-5.5.");
   }
 
   const { data, error } = await supabase.functions.invoke("sports-research", {
@@ -37,6 +37,6 @@ export async function runSportsResearch(request: string) {
 
   return {
     research: SportsResearchSchema.parse(data?.research),
-    model: String(data?.model ?? "gpt-5.6-sol"),
+    model: String(data?.model ?? "gpt-5.5"),
   };
 }

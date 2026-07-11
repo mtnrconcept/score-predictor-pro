@@ -43,7 +43,7 @@ export async function getAiSettings() {
   return {
     personalKeyConfigured: data.personalKeyConfigured === true,
     applicationKeyConfigured: data.applicationKeyConfigured === true,
-    model: String(data.model ?? "gpt-5.6-sol"),
+    model: String(data.model ?? "gpt-5.5"),
   };
 }
 
