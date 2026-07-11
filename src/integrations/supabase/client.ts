@@ -31,15 +31,11 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
 }
 
 function createSupabaseClient() {
-  // Use import.meta.env for client-side (Vite build-time replacement)
-  // Fall back to process.env for SSR (server-side rendering)
-  const serverEnv = typeof process !== "undefined" ? process.env : undefined;
-  const SUPABASE_URL =
-    import.meta.env.VITE_SUPABASE_URL || serverEnv?.SUPABASE_URL || DEFAULT_SUPABASE_URL;
-  const SUPABASE_PUBLISHABLE_KEY =
-    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-    serverEnv?.SUPABASE_PUBLISHABLE_KEY ||
-    DEFAULT_SUPABASE_PUBLISHABLE_KEY;
+  // This application is intentionally bound to its production Supabase project.
+  // Do not let stale Lovable/Vercel variables silently route auth and functions
+  // to a different database.
+  const SUPABASE_URL = DEFAULT_SUPABASE_URL;
+  const SUPABASE_PUBLISHABLE_KEY = DEFAULT_SUPABASE_PUBLISHABLE_KEY;
 
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
     const missing = [
