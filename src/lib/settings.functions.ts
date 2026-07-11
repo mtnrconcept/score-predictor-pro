@@ -13,11 +13,26 @@ async function invokeAiSettings(body: Record<string, unknown>) {
   const { data: auth } = await supabase.auth.getSession();
   if (!auth.session) throw new Error("Ta session a expiré. Reconnecte-toi puis réessaie.");
 
-  const { data, error } = await supabase.functions.invoke("ai-settings", { body });
+  const { data, error } = await supabase.functions.invoke("ai-settings", {
+    body,
+    headers: { Authorization: `Bearer ${auth.session.access_token}` },
+  });
   if (error) {
-    const status = (error as { context?: { status?: number } }).context?.status;
+    const response = (error as { context?: Response }).context;
+    const status = response?.status;
+    let backendMessage: string | undefined;
+    if (response) {
+      try {
+        const payload = await response.clone().json();
+        backendMessage = typeof payload?.error === "string" ? payload.error : undefined;
+      } catch {
+        // Ignore non-JSON gateway responses.
+      }
+    }
     if (status === 401) throw new Error("Ta session a expiré. Reconnecte-toi puis réessaie.");
-    throw new Error("Le service de configuration IA est momentanément indisponible.");
+    throw new Error(
+      backendMessage || "Le service de configuration IA est momentanément indisponible.",
+    );
   }
   if (data?.error) throw new Error(String(data.error));
   return data;
