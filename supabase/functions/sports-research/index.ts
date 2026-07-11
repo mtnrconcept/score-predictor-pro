@@ -154,6 +154,13 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+  if (req.method === "GET") {
+    return json({
+      status: "ok",
+      openAiConfigured: Boolean(Deno.env.get("OPENAI_API_KEY")),
+      model: Deno.env.get("OPENAI_RESEARCH_MODEL") || "gpt-5.5",
+    });
+  }
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
 
   const apiKey = await resolveApiKey(req);

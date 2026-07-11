@@ -63,8 +63,13 @@ Avant un déploiement distant, exécuter `npx supabase db push --dry-run --linke
 Secrets des Edge Functions :
 
 ```bash
-npx supabase secrets set SPORTS_PROVIDER_API_KEY=... PREDICTION_ENGINE_SHARED_SECRET=...
+npx supabase secrets set OPENAI_API_KEY=... SPORTS_PROVIDER_API_KEY=... PREDICTION_ENGINE_SHARED_SECRET=...
 ```
+
+Pour le déploiement GitHub Actions, configurer les secrets du dépôt
+`OPENAI_API_KEY` et `SUPABASE_ACCESS_TOKEN`. Le workflow
+`Deploy Supabase AI` synchronise ensuite la clé vers le runtime Supabase,
+déploie les fonctions IA et exécute des contrôles sans afficher la valeur.
 
 Déploiement :
 
