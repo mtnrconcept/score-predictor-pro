@@ -239,7 +239,8 @@ défini, explique-le. Réponds en français et rappelle qu'un pronostic n'est ja
       }),
     });
   } catch (error) {
-    const timedOut = error instanceof DOMException && error.name === "TimeoutError";
+    const timedOut = error instanceof DOMException &&
+      error.name === "TimeoutError";
     console.error("OpenAI sports research transport failed", {
       kind: timedOut ? "timeout" : "network",
     });
@@ -255,8 +256,13 @@ défini, explique-le. Réponds en français et rappelle qu'un pronostic n'est ja
   try {
     payload = JSON.parse(rawPayload);
   } catch {
-    console.error("OpenAI returned a non-JSON response", { status: response.status });
-    return json({ error: "OpenAI a retourné une réponse réseau invalide." }, 502);
+    console.error("OpenAI returned a non-JSON response", {
+      status: response.status,
+    });
+    return json(
+      { error: "OpenAI a retourné une réponse réseau invalide." },
+      502,
+    );
   }
   if (!response.ok) {
     console.error("OpenAI sports research failed", {
@@ -270,7 +276,9 @@ défini, explique-le. Réponds en français et rappelle qu'un pronostic n'est ja
       : payload?.error?.code === "model_not_found"
       ? `Le modèle OpenAI ${model} n'est pas accessible avec ce projet.`
       : response.status === 400
-      ? `La requête OpenAI est incompatible (${payload?.error?.code || "invalid_request"}).`
+      ? `La requête OpenAI est incompatible (${
+        payload?.error?.code || "invalid_request"
+      }).`
       : "L'analyse OpenAI a échoué. Réessaie dans quelques instants.";
     return json({ error: message }, response.status === 401 ? 401 : 502);
   }
