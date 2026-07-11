@@ -91,7 +91,7 @@ export const generatePrediction = createServerFn({ method: "POST" })
         user_id: context.userId,
         match_id: data.matchId,
         status: "running",
-        model: process.env.OPENAI_MODEL || "gpt-5.6-sol",
+        model: process.env.OPENAI_MODEL || "gpt-5.5",
         engine_version: "0.4.0",
       })
       .select("id")

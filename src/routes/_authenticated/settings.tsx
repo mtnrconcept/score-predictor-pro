@@ -66,7 +66,7 @@ function SettingsPage() {
             <p className="mt-1 text-xs text-muted-foreground">
               Modèle actif :{" "}
               <span className="font-mono text-foreground">
-                {settings.data?.model ?? "gpt-5.6-sol"}
+                {settings.data?.model ?? "gpt-5.5"}
               </span>
             </p>
           </div>

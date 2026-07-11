@@ -75,7 +75,7 @@ Deno.serve(async (req: Request) => {
     return json({
       personalKeyConfigured: data === true,
       applicationKeyConfigured: Boolean(Deno.env.get("OPENAI_API_KEY")),
-      model: Deno.env.get("OPENAI_RESEARCH_MODEL") || "gpt-5.6-sol",
+      model: Deno.env.get("OPENAI_RESEARCH_MODEL") || "gpt-5.5",
     });
   }
 
