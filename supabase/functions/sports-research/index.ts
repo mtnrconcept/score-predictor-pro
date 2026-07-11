@@ -27,12 +27,13 @@ async function resolveApiKey(req: Request): Promise<string | null> {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const authorization = req.headers.get("authorization");
   if (!url || !anonKey || !serviceKey || !authorization) return null;
+  const token = authorization.replace(/^Bearer\s+/i, "").trim();
+  if (!token) return null;
 
   const userClient = createClient(url, anonKey, {
-    global: { headers: { authorization } },
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data: userData, error: userError } = await userClient.auth.getUser();
+  const { data: userData, error: userError } = await userClient.auth.getUser(token);
   if (userError || !userData.user) return null;
 
   const admin = createClient(url, serviceKey, {

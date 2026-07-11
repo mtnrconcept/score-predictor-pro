@@ -27,11 +27,12 @@ async function authenticatedUser(req: Request) {
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const authorization = req.headers.get("authorization");
   if (!url || !anonKey || !authorization) return null;
+  const token = authorization.replace(/^Bearer\s+/i, "").trim();
+  if (!token) return null;
   const client = createClient(url, anonKey, {
-    global: { headers: { authorization } },
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data, error } = await client.auth.getUser();
+  const { data, error } = await client.auth.getUser(token);
   return error ? null : data.user;
 }
 
