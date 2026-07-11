@@ -23,8 +23,9 @@ export function sportFromKey(key: string) {
   return SPORTS.find((s) => s.key === key) ?? SPORTS[0];
 }
 
-export function sportFromTsdb(tsdb: string): SportKey {
-  return SPORTS.find((s) => s.tsdb.toLowerCase() === tsdb.toLowerCase())?.key ?? "soccer";
+export function sportFromTsdb(tsdb: string | null | undefined): SportKey {
+  const normalized = (tsdb ?? "").toLowerCase();
+  return SPORTS.find((s) => s.tsdb.toLowerCase() === normalized)?.key ?? "soccer";
 }
 
 // Major competitions covered by the biggest betting sites, keyed to TheSportsDB league IDs.

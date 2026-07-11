@@ -34,14 +34,14 @@ export async function fetchHeadToHead(matchId: string, homeTeam: string, awayTea
     id: e.idEvent,
     date: e.dateEvent ?? null,
     league: e.strLeague ?? "",
-    homeTeam: e.strHomeTeam,
-    awayTeam: e.strAwayTeam,
+    homeTeam: e.strHomeTeam ?? "",
+    awayTeam: e.strAwayTeam ?? "",
     homeScore: e.intHomeScore,
     awayScore: e.intAwayScore,
     season: e.strSeason ?? null,
   }));
   let homeWins = 0, awayWins = 0, draws = 0, played = 0;
-  const norm = (s: string) => s.toLowerCase().trim();
+  const norm = (s: string | null | undefined) => (s ?? "").toLowerCase().trim();
   const H = norm(homeTeam), A = norm(awayTeam);
   for (const e of events) {
     const hs = e.homeScore != null ? parseInt(e.homeScore, 10) : NaN;
@@ -86,12 +86,12 @@ export interface MatchSummary {
 
 interface TsdbEvent {
   idEvent: string;
-  strEvent: string;
-  strSport: string;
-  strLeague: string;
+  strEvent: string | null;
+  strSport: string | null;
+  strLeague: string | null;
   idLeague: string | null;
-  strHomeTeam: string;
-  strAwayTeam: string;
+  strHomeTeam: string | null;
+  strAwayTeam: string | null;
   strHomeTeamBadge?: string | null;
   strAwayTeamBadge?: string | null;
   intHomeScore: string | null;
@@ -107,14 +107,15 @@ interface TsdbEvent {
 
 function mapEvent(e: TsdbEvent): MatchSummary {
   const sport = sportFromTsdb(e.strSport);
+  const eventName = e.strEvent?.trim() || "Événement à confirmer";
   return {
     id: e.idEvent,
     sport,
     sportLabel: sportFromKey(sport).label,
-    competition: e.strLeague,
+    competition: e.strLeague?.trim() || "Compétition à confirmer",
     competitionId: e.idLeague ?? null,
-    homeTeam: e.strHomeTeam,
-    awayTeam: e.strAwayTeam,
+    homeTeam: e.strHomeTeam?.trim() || eventName,
+    awayTeam: e.strAwayTeam?.trim() || "Adversaire à confirmer",
     homeBadge: e.strHomeTeamBadge ?? null,
     awayBadge: e.strAwayTeamBadge ?? null,
     homeScore: e.intHomeScore,
