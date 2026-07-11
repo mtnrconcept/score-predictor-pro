@@ -1,10 +1,21 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { getMatchDetail } from "@/lib/matches.functions";
+import { getMatchDetail, type MatchSummary } from "@/lib/matches.functions";
 import { generatePrediction, savePrediction, type Prediction } from "@/lib/predictions.functions";
 import { sportFromKey } from "@/lib/sports";
-import { ArrowLeft, Loader2, RefreshCw, Save, Sparkles, Trophy, AlertCircle, Target } from "lucide-react";
+import {
+  ArrowLeft,
+  Loader2,
+  RefreshCw,
+  Save,
+  Sparkles,
+  Trophy,
+  AlertCircle,
+  AlertTriangle,
+  Database,
+  Target,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -14,7 +25,10 @@ export const Route = createFileRoute("/match/$sport/$matchId")({
   head: ({ params }) => ({
     meta: [
       { title: `Pronostic ${params.sport} — OddsIQ` },
-      { name: "description", content: `Pronostic IA détaillé pour ce match : 1N2, score, buteurs, probabilités.` },
+      {
+        name: "description",
+        content: `Pronostic IA détaillé pour ce match : 1N2, score, buteurs, probabilités.`,
+      },
     ],
   }),
 });
@@ -30,7 +44,10 @@ function MatchPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">
-      <Link to="/" className="mb-4 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+      <Link
+        to="/"
+        className="mb-4 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+      >
         <ArrowLeft className="h-3 w-3" /> Retour aux matchs
       </Link>
 
@@ -50,18 +67,24 @@ function MatchPage() {
         <>
           <header className="rounded-lg border border-border bg-card p-6">
             <div className="mb-3 flex items-center justify-between text-xs uppercase tracking-widest text-muted-foreground">
-              <span>{sportMeta.emoji} {data.match.sportLabel} · {data.match.competition}</span>
+              <span>
+                {sportMeta.emoji} {data.match.sportLabel} · {data.match.competition}
+              </span>
               <span>{data.match.status}</span>
             </div>
             <div className="flex items-center justify-between gap-4">
               <TeamBlock name={data.match.homeTeam} badge={data.match.homeBadge} />
               <div className="text-center">
                 <div className="tabular text-4xl font-bold">
-                  {data.match.homeScore ?? "—"} <span className="text-muted-foreground">:</span> {data.match.awayScore ?? "—"}
+                  {data.match.homeScore ?? "—"} <span className="text-muted-foreground">:</span>{" "}
+                  {data.match.awayScore ?? "—"}
                 </div>
                 {data.match.startTime && (
                   <div className="mt-1 text-xs text-muted-foreground">
-                    {new Date(data.match.startTime).toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" })}
+                    {new Date(data.match.startTime).toLocaleString("fr-FR", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })}
                   </div>
                 )}
               </div>
@@ -69,7 +92,8 @@ function MatchPage() {
             </div>
             {data.description && (
               <p className="mt-6 border-t border-border pt-4 text-sm leading-relaxed text-muted-foreground">
-                {data.description.slice(0, 400)}{data.description.length > 400 ? "…" : ""}
+                {data.description.slice(0, 400)}
+                {data.description.length > 400 ? "…" : ""}
               </p>
             )}
           </header>
@@ -81,9 +105,19 @@ function MatchPage() {
   );
 }
 
-function TeamBlock({ name, badge, align = "left" }: { name: string; badge: string | null; align?: "left" | "right" }) {
+function TeamBlock({
+  name,
+  badge,
+  align = "left",
+}: {
+  name: string;
+  badge: string | null;
+  align?: "left" | "right";
+}) {
   return (
-    <div className={`flex flex-1 items-center gap-3 ${align === "right" ? "flex-row-reverse text-right" : ""}`}>
+    <div
+      className={`flex flex-1 items-center gap-3 ${align === "right" ? "flex-row-reverse text-right" : ""}`}
+    >
       {badge ? (
         <img src={badge} alt="" className="h-14 w-14 object-contain" />
       ) : (
@@ -94,13 +128,15 @@ function TeamBlock({ name, badge, align = "left" }: { name: string; badge: strin
   );
 }
 
-function PredictionSection({ matchId, match }: { matchId: string; match: any }) {
+function PredictionSection({ matchId, match }: { matchId: string; match: MatchSummary }) {
   const qc = useQueryClient();
   const [authed, setAuthed] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setAuthed(!!data.user));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => setAuthed(!!session?.user));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) =>
+      setAuthed(!!session?.user),
+    );
     return () => sub.subscription.unsubscribe();
   }, []);
 
@@ -138,13 +174,24 @@ function PredictionSection({ matchId, match }: { matchId: string; match: any }) 
         </h2>
         <div className="flex gap-2">
           {prediction && authed && (
-            <Button size="sm" variant="secondary" onClick={() => save.mutate(prediction)} disabled={save.isPending}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => save.mutate(prediction)}
+              disabled={save.isPending}
+            >
               <Save className="mr-1.5 h-4 w-4" /> Sauvegarder
             </Button>
           )}
           {prediction && (
-            <Button size="sm" variant="ghost" onClick={() => gen.mutate(true)} disabled={gen.isPending}>
-              <RefreshCw className={"mr-1.5 h-4 w-4 " + (gen.isPending ? "animate-spin" : "")} /> Régénérer
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => gen.mutate(true)}
+              disabled={gen.isPending}
+            >
+              <RefreshCw className={"mr-1.5 h-4 w-4 " + (gen.isPending ? "animate-spin" : "")} />{" "}
+              Régénérer
             </Button>
           )}
         </div>
@@ -155,9 +202,17 @@ function PredictionSection({ matchId, match }: { matchId: string; match: any }) 
           <p className="mb-4 text-sm text-muted-foreground">
             Lance l'analyse IA pour obtenir un pronostic complet sur ce match.
           </p>
-          <Button onClick={() => gen.mutate(undefined)} size="lg">
-            <Sparkles className="mr-2 h-4 w-4" /> Générer le pronostic
-          </Button>
+          {authed ? (
+            <Button onClick={() => gen.mutate(undefined)} size="lg">
+              <Sparkles className="mr-2 h-4 w-4" /> Générer le pronostic
+            </Button>
+          ) : (
+            <Button asChild size="lg">
+              <Link to="/auth" search={{ next: `/match/${match.sport}/${matchId}` }}>
+                Se connecter pour analyser
+              </Link>
+            </Button>
+          )}
         </div>
       )}
 
@@ -175,28 +230,96 @@ function PredictionSection({ matchId, match }: { matchId: string; match: any }) 
         </div>
       )}
 
-      {prediction && <PredictionView p={prediction} homeTeam={match.homeTeam} awayTeam={match.awayTeam} />}
+      {prediction && (
+        <PredictionView p={prediction} homeTeam={match.homeTeam} awayTeam={match.awayTeam} />
+      )}
       {prediction && gen.data?.cached && (
-        <div className="mt-4 text-[11px] text-muted-foreground">Résultat en cache — régénère pour une nouvelle analyse.</div>
+        <div className="mt-4 text-[11px] text-muted-foreground">
+          Résultat en cache — régénère pour une nouvelle analyse.
+        </div>
+      )}
+      {prediction && gen.data?.quota && (
+        <div className="mt-4 text-[11px] text-muted-foreground">
+          Quota du jour : {gen.data.quota.used}/{gen.data.quota.limit} analyses utilisées ·{" "}
+          {gen.data.quota.remaining} restante(s).
+        </div>
       )}
     </section>
   );
 }
 
-function PredictionView({ p, homeTeam, awayTeam }: { p: Prediction; homeTeam: string; awayTeam: string }) {
-  const outcomeLabel = p.outcome.prediction === "home" ? homeTeam : p.outcome.prediction === "away" ? awayTeam : "Match nul";
+function PredictionView({
+  p,
+  homeTeam,
+  awayTeam,
+}: {
+  p: Prediction;
+  homeTeam: string;
+  awayTeam: string;
+}) {
+  const outcomeLabel =
+    p.outcome.prediction === "home"
+      ? homeTeam
+      : p.outcome.prediction === "away"
+        ? awayTeam
+        : "Match nul";
 
   return (
     <div className="space-y-6">
+      {p.abstention.shouldAbstain && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4">
+          <div className="flex items-center gap-2 font-semibold text-amber-300">
+            <AlertTriangle className="h-4 w-4" /> Abstention recommandée
+          </div>
+          <p className="mt-2 text-xs text-amber-100/80">
+            {p.abstention.reasons.join(" · ")}. Le moteur affiche ses estimations pour information,
+            sans recommandation de mise.
+          </p>
+        </div>
+      )}
+
       {/* Summary */}
       <div className="rounded-lg bg-surface p-4">
         <p className="text-sm leading-relaxed">{p.summary}</p>
         <div className="mt-3 flex items-center gap-2 text-xs">
-          <span className="font-semibold uppercase tracking-wider text-muted-foreground">Confiance globale</span>
+          <span className="font-semibold uppercase tracking-wider text-muted-foreground">
+            Confiance globale
+          </span>
           <ConfidenceBar value={p.confidence} />
           <span className="tabular font-bold text-primary">{Math.round(p.confidence)}%</span>
         </div>
       </div>
+
+      <Card icon={<Database className="h-4 w-4" />} title="Qualité & incertitude">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded bg-surface p-3">
+            <div className="text-xs text-muted-foreground">Qualité des données</div>
+            <div className="mt-1 text-2xl font-bold text-primary">
+              {Math.round(p.dataQuality.score)}%
+            </div>
+          </div>
+          <div className="rounded bg-surface p-3">
+            <div className="text-xs text-muted-foreground">Buts attendus</div>
+            <div className="mt-1 tabular text-xl font-bold">
+              {p.statisticalModel.expectedHomeGoals} – {p.statisticalModel.expectedAwayGoals}
+            </div>
+          </div>
+          <div className="rounded bg-surface p-3">
+            <div className="text-xs text-muted-foreground">Échantillon effectif</div>
+            <div className="mt-1 tabular text-xl font-bold">
+              {p.uncertainty.effectiveSampleSize}
+            </div>
+          </div>
+        </div>
+        <div className="mt-3 text-xs text-muted-foreground">
+          Couvert : {p.dataQuality.coverage.join(", ") || "aucune donnée avancée"}
+        </div>
+        {p.dataQuality.missing.length > 0 && (
+          <div className="mt-1 text-xs text-amber-300/80">
+            Manquant : {p.dataQuality.missing.join(", ")}
+          </div>
+        )}
+      </Card>
 
       {/* 1N2 */}
       <Card icon={<Trophy className="h-4 w-4" />} title="Résultat 1N2">
@@ -204,9 +327,21 @@ function PredictionView({ p, homeTeam, awayTeam }: { p: Prediction; homeTeam: st
           Pronostic : <span className="font-bold text-primary">{outcomeLabel}</span>
         </div>
         <div className="grid grid-cols-3 gap-2">
-          <ProbBox label={homeTeam} value={p.outcome.homeWinProb} highlight={p.outcome.prediction === "home"} />
-          <ProbBox label="Nul" value={p.outcome.drawProb} highlight={p.outcome.prediction === "draw"} />
-          <ProbBox label={awayTeam} value={p.outcome.awayWinProb} highlight={p.outcome.prediction === "away"} />
+          <ProbBox
+            label={homeTeam}
+            value={p.outcome.homeWinProb}
+            highlight={p.outcome.prediction === "home"}
+          />
+          <ProbBox
+            label="Nul"
+            value={p.outcome.drawProb}
+            highlight={p.outcome.prediction === "draw"}
+          />
+          <ProbBox
+            label={awayTeam}
+            value={p.outcome.awayWinProb}
+            highlight={p.outcome.prediction === "away"}
+          />
         </div>
       </Card>
 
@@ -223,7 +358,9 @@ function PredictionView({ p, homeTeam, awayTeam }: { p: Prediction; homeTeam: st
           <div className="flex flex-wrap gap-1.5">
             <span className="text-xs text-muted-foreground">Alternatives :</span>
             {p.scorePrediction.alternatives.map((a, i) => (
-              <span key={i} className="tabular rounded bg-surface px-2 py-0.5 text-xs">{a}</span>
+              <span key={i} className="tabular rounded bg-surface px-2 py-0.5 text-xs">
+                {a}
+              </span>
             ))}
           </div>
         )}
@@ -236,7 +373,14 @@ function PredictionView({ p, homeTeam, awayTeam }: { p: Prediction; homeTeam: st
             <div className="text-xs uppercase text-muted-foreground">Ligne</div>
             <div className="tabular text-2xl font-bold">{p.totals.line}</div>
           </div>
-          <div className={"rounded px-3 py-1 text-sm font-bold uppercase " + (p.totals.recommendation === "over" ? "bg-primary/20 text-primary" : "bg-accent/20 text-accent")}>
+          <div
+            className={
+              "rounded px-3 py-1 text-sm font-bold uppercase " +
+              (p.totals.recommendation === "over"
+                ? "bg-primary/20 text-primary"
+                : "bg-accent/20 text-accent")
+            }
+          >
             {p.totals.recommendation === "over" ? "OVER" : "UNDER"}
           </div>
         </div>
@@ -253,7 +397,9 @@ function PredictionView({ p, homeTeam, awayTeam }: { p: Prediction; homeTeam: st
                   <div className="text-sm font-medium">{b.label}</div>
                   <div className="text-xs text-muted-foreground">{b.pick}</div>
                 </div>
-                <span className="tabular text-xs font-bold text-primary">{Math.round(b.confidence)}%</span>
+                <span className="tabular text-xs font-bold text-primary">
+                  {Math.round(b.confidence)}%
+                </span>
               </li>
             ))}
           </ul>
@@ -268,7 +414,9 @@ function PredictionView({ p, homeTeam, awayTeam }: { p: Prediction; homeTeam: st
               <div key={i} className="rounded bg-surface p-3">
                 <div className="mb-1 flex items-center justify-between">
                   <span className="text-sm font-semibold">{b.market}</span>
-                  <span className="tabular text-xs font-bold text-primary">{Math.round(b.confidence)}%</span>
+                  <span className="tabular text-xs font-bold text-primary">
+                    {Math.round(b.confidence)}%
+                  </span>
                 </div>
                 <div className="text-xs text-foreground">{b.pick}</div>
                 <div className="mt-1 text-[11px] text-muted-foreground">{b.reasoning}</div>
@@ -285,7 +433,9 @@ function PredictionView({ p, homeTeam, awayTeam }: { p: Prediction; homeTeam: st
             {p.keyPlayers.map((k, i) => (
               <div key={i} className="rounded bg-surface p-3">
                 <div className="text-sm font-semibold">{k.name}</div>
-                <div className="text-xs text-muted-foreground">{k.team} · {k.role}</div>
+                <div className="text-xs text-muted-foreground">
+                  {k.team} · {k.role}
+                </div>
                 <div className="mt-1 text-xs">{k.note}</div>
               </div>
             ))}
@@ -297,7 +447,9 @@ function PredictionView({ p, homeTeam, awayTeam }: { p: Prediction; homeTeam: st
       {p.injuriesAndAbsences.length > 0 && (
         <Card icon={<AlertCircle className="h-4 w-4" />} title="Blessures & absences">
           <ul className="space-y-1 text-sm text-muted-foreground">
-            {p.injuriesAndAbsences.map((x, i) => <li key={i}>• {x}</li>)}
+            {p.injuriesAndAbsences.map((x, i) => (
+              <li key={i}>• {x}</li>
+            ))}
           </ul>
         </Card>
       )}
@@ -306,7 +458,12 @@ function PredictionView({ p, homeTeam, awayTeam }: { p: Prediction; homeTeam: st
       {p.keyFactors.length > 0 && (
         <Card title="Facteurs clés">
           <ul className="space-y-1 text-sm">
-            {p.keyFactors.map((f, i) => <li key={i} className="flex gap-2"><span className="text-primary">▸</span>{f}</li>)}
+            {p.keyFactors.map((f, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="text-primary">▸</span>
+                {f}
+              </li>
+            ))}
           </ul>
         </Card>
       )}
@@ -333,39 +490,58 @@ function PredictionView({ p, homeTeam, awayTeam }: { p: Prediction; homeTeam: st
               </div>
             )}
             {p.headToHead.matchesAnalyzed > 0 && (
-              <div className="text-xs text-muted-foreground">Basé sur {p.headToHead.matchesAnalyzed} confrontation(s) passée(s)</div>
+              <div className="text-xs text-muted-foreground">
+                Basé sur {p.headToHead.matchesAnalyzed} confrontation(s) passée(s)
+              </div>
             )}
             {p.headToHead.keyPastMatches.length > 0 && (
               <div>
-                <div className="mb-1 text-xs font-semibold uppercase text-muted-foreground">Matchs marquants</div>
+                <div className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
+                  Matchs marquants
+                </div>
                 <ul className="space-y-1">
-                  {p.headToHead.keyPastMatches.map((m, i) => <li key={i}>• {m}</li>)}
+                  {p.headToHead.keyPastMatches.map((m, i) => (
+                    <li key={i}>• {m}</li>
+                  ))}
                 </ul>
               </div>
             )}
             {p.headToHead.decisivePlayers.length > 0 && (
               <div>
-                <div className="mb-1 text-xs font-semibold uppercase text-muted-foreground">Joueurs décisifs dans ces confrontations</div>
+                <div className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
+                  Joueurs décisifs dans ces confrontations
+                </div>
                 <ul className="space-y-1">
                   {p.headToHead.decisivePlayers.map((pl, i) => (
-                    <li key={i}><span className="font-medium">{pl.name}</span> <span className="text-muted-foreground">({pl.team})</span> — {pl.impact}</li>
+                    <li key={i}>
+                      <span className="font-medium">{pl.name}</span>{" "}
+                      <span className="text-muted-foreground">({pl.team})</span> — {pl.impact}
+                    </li>
                   ))}
                 </ul>
               </div>
             )}
             {p.headToHead.strengthsWhenWinning.length > 0 && (
               <div>
-                <div className="mb-1 text-xs font-semibold uppercase text-emerald-500">Forces lors des victoires</div>
+                <div className="mb-1 text-xs font-semibold uppercase text-emerald-500">
+                  Forces lors des victoires
+                </div>
                 <ul className="space-y-1">
-                  {p.headToHead.strengthsWhenWinning.map((s, i) => <li key={i}>+ {s}</li>)}
+                  {p.headToHead.strengthsWhenWinning.map((s, i) => (
+                    <li key={i}>+ {s}</li>
+                  ))}
                 </ul>
               </div>
             )}
             {p.headToHead.weaknessesWhenLosing.length > 0 && (
               <div>
-                <div className="mb-1 text-xs font-semibold uppercase text-red-500">Faiblesses lors des défaites</div>
+                <div className="mb-1 text-xs font-semibold uppercase text-red-500">
+                  Faiblesses lors des défaites
+                </div>
                 <ul className="space-y-1">
-                  {p.headToHead.weaknessesWhenLosing.map((w, i) => <li key={i}>− {w}</li>)}
+                  {p.headToHead.weaknessesWhenLosing.map((w, i) => (
+                    <li key={i}>− {w}</li>
+                  ))}
                 </ul>
               </div>
             )}
@@ -380,7 +556,15 @@ function PredictionView({ p, homeTeam, awayTeam }: { p: Prediction; homeTeam: st
   );
 }
 
-function Card({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) {
+function Card({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div className="rounded-lg border border-border bg-background/40 p-4">
       <div className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -392,11 +576,26 @@ function Card({ title, icon, children }: { title: string; icon?: React.ReactNode
   );
 }
 
-function ProbBox({ label, value, highlight }: { label: string; value: number; highlight: boolean }) {
+function ProbBox({
+  label,
+  value,
+  highlight,
+}: {
+  label: string;
+  value: number;
+  highlight: boolean;
+}) {
   return (
-    <div className={"rounded p-3 text-center " + (highlight ? "bg-primary/15 ring-1 ring-primary" : "bg-surface")}>
+    <div
+      className={
+        "rounded p-3 text-center " +
+        (highlight ? "bg-primary/15 ring-1 ring-primary" : "bg-surface")
+      }
+    >
       <div className="tabular text-xl font-bold">{Math.round(value)}%</div>
-      <div className="mt-0.5 truncate text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="mt-0.5 truncate text-[10px] uppercase tracking-wider text-muted-foreground">
+        {label}
+      </div>
     </div>
   );
 }
@@ -404,7 +603,10 @@ function ProbBox({ label, value, highlight }: { label: string; value: number; hi
 function ConfidenceBar({ value }: { value: number }) {
   return (
     <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-2">
-      <div className="h-full bg-primary transition-all" style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
+      <div
+        className="h-full bg-primary transition-all"
+        style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+      />
     </div>
   );
 }

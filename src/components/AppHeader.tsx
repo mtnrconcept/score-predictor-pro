@@ -1,7 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Activity, LogOut, User } from "lucide-react";
+import { Activity, LogOut, Settings, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function AppHeader() {
@@ -41,17 +41,36 @@ export function AppHeader() {
             Matchs
           </Link>
           {email && (
-            <Link
-              to="/my-predictions"
-              className="rounded px-3 py-1.5 hover:bg-surface hover:text-foreground [&.active]:bg-surface [&.active]:text-foreground"
-            >
-              Mes pronostics
-            </Link>
+            <>
+              <Link
+                to="/my-predictions"
+                className="rounded px-3 py-1.5 hover:bg-surface hover:text-foreground [&.active]:bg-surface [&.active]:text-foreground"
+              >
+                Mes pronostics
+              </Link>
+              <Link
+                to="/settings"
+                className="rounded px-3 py-1.5 hover:bg-surface hover:text-foreground [&.active]:bg-surface [&.active]:text-foreground"
+              >
+                Configuration IA
+              </Link>
+            </>
           )}
         </nav>
         <div className="ml-auto flex items-center gap-2">
           {email ? (
             <>
+              <Button
+                asChild
+                variant="ghost"
+                size="sm"
+                className="md:hidden"
+                aria-label="Configuration IA"
+              >
+                <Link to="/settings">
+                  <Settings className="h-4 w-4" />
+                </Link>
+              </Button>
               <span className="hidden items-center gap-2 rounded-md bg-surface px-3 py-1.5 text-xs text-muted-foreground sm:flex">
                 <User className="h-3.5 w-3.5" />
                 {email}

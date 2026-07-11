@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedMyPredictionsRouteImport } from './routes/_authenticated/my-predictions'
 import { Route as MatchSportMatchIdRouteImport } from './routes/match.$sport.$matchId'
 
@@ -29,6 +30,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedMyPredictionsRoute =
   AuthenticatedMyPredictionsRouteImport.update({
     id: '/my-predictions',
@@ -45,12 +51,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/my-predictions': typeof AuthenticatedMyPredictionsRoute
+  '/settings': typeof AuthenticatedSettingsRoute
   '/match/$sport/$matchId': typeof MatchSportMatchIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/my-predictions': typeof AuthenticatedMyPredictionsRoute
+  '/settings': typeof AuthenticatedSettingsRoute
   '/match/$sport/$matchId': typeof MatchSportMatchIdRoute
 }
 export interface FileRoutesById {
@@ -59,19 +67,22 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/my-predictions': typeof AuthenticatedMyPredictionsRoute
+  '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/match/$sport/$matchId': typeof MatchSportMatchIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/my-predictions' | '/match/$sport/$matchId'
+  fullPaths:
+    '/' | '/auth' | '/my-predictions' | '/settings' | '/match/$sport/$matchId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/my-predictions' | '/match/$sport/$matchId'
+  to: '/' | '/auth' | '/my-predictions' | '/settings' | '/match/$sport/$matchId'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/my-predictions'
+    | '/_authenticated/settings'
     | '/match/$sport/$matchId'
   fileRoutesById: FileRoutesById
 }
@@ -105,6 +116,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/my-predictions': {
       id: '/_authenticated/my-predictions'
       path: '/my-predictions'
@@ -124,10 +142,12 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedMyPredictionsRoute: typeof AuthenticatedMyPredictionsRoute
+  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedMyPredictionsRoute: AuthenticatedMyPredictionsRoute,
+  AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -142,3 +162,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
