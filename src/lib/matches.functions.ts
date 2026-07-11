@@ -166,7 +166,7 @@ function dedupe(events: TsdbEvent[]): TsdbEvent[] {
 }
 
 export const listMatches = createServerFn({ method: "GET" })
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         sport: z.string().optional(),
@@ -211,7 +211,7 @@ export const listMatches = createServerFn({ method: "GET" })
   });
 
 export const getMatchDetail = createServerFn({ method: "GET" })
-  .inputValidator((input: unknown) => z.object({ matchId: z.string().min(1) }).parse(input))
+  .validator((input: unknown) => z.object({ matchId: z.string().min(1) }).parse(input))
   .handler(async ({ data }) => {
     const url = `https://www.thesportsdb.com/api/v1/json/${TSDB_KEY}/lookupevent.php?id=${encodeURIComponent(data.matchId)}`;
     const json = await fetchJson<{ events: TsdbEvent[] | null }>(url);
