@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.110.2";
 const corsHeaders = {
   "access-control-allow-origin": "*",
   "access-control-allow-headers":
@@ -14,6 +15,37 @@ function json(body: unknown, status = 200): Response {
       "cache-control": "no-store",
     },
   });
+}
+
+function secretName(userId: string): string {
+  return `openai_api_key_${userId.replaceAll("-", "_")}`;
+}
+
+async function resolveApiKey(req: Request): Promise<string | null> {
+  const url = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const authorization = req.headers.get("authorization");
+  if (!url || !anonKey || !serviceKey || !authorization) return null;
+
+  const userClient = createClient(url, anonKey, {
+    global: { headers: { authorization } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data: userData, error: userError } = await userClient.auth.getUser();
+  if (userError || !userData.user) return null;
+
+  const admin = createClient(url, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data, error } = await admin.rpc("get_app_secret", {
+    requested_name: secretName(userData.user.id),
+  });
+  if (error) {
+    console.error("Unable to read personal OpenAI key", { code: error.code });
+  }
+  if (typeof data === "string" && data.length > 0) return data;
+  return Deno.env.get("OPENAI_API_KEY") || null;
 }
 
 const STRING = { type: "string" } as const;
@@ -124,10 +156,10 @@ Deno.serve(async (req: Request) => {
   }
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
 
-  const apiKey = Deno.env.get("OPENAI_API_KEY");
+  const apiKey = await resolveApiKey(req);
   if (!apiKey) {
     return json({
-      error: "Le secret OPENAI_API_KEY n'est pas configuré dans Supabase.",
+      error: "Aucune clé OpenAI personnelle ou serveur n'est configurée.",
     }, 500);
   }
 
