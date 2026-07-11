@@ -22,13 +22,13 @@ const toNumber = (value: unknown, fallback = 0) => {
 };
 
 function samplesFromH2H(teamName: string, h2h: H2HStats): TeamMatchSample[] {
-  const normalized = teamName.toLowerCase().trim();
+  const normalized = (teamName ?? "").toLowerCase().trim();
   return h2h.events.flatMap((event) => {
     const homeScore = Number(event.homeScore);
     const awayScore = Number(event.awayScore);
     if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore) || !event.date) return [];
-    const isHome = event.homeTeam.toLowerCase().trim() === normalized;
-    const isAway = event.awayTeam.toLowerCase().trim() === normalized;
+    const isHome = (event.homeTeam ?? "").toLowerCase().trim() === normalized;
+    const isAway = (event.awayTeam ?? "").toLowerCase().trim() === normalized;
     if (!isHome && !isAway) return [];
     return [
       {

@@ -27,9 +27,9 @@ function HomePage() {
     if (!q) return true;
     const s = q.toLowerCase();
     return (
-      m.homeTeam.toLowerCase().includes(s) ||
-      m.awayTeam.toLowerCase().includes(s) ||
-      m.competition.toLowerCase().includes(s)
+      (m.homeTeam ?? "").toLowerCase().includes(s) ||
+      (m.awayTeam ?? "").toLowerCase().includes(s) ||
+      (m.competition ?? "").toLowerCase().includes(s)
     );
   });
 

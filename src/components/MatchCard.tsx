@@ -14,8 +14,8 @@ function formatTime(iso: string | null) {
   return d.toLocaleString("fr-FR", opts);
 }
 
-function isLive(status: string) {
-  const s = status.toLowerCase();
+function isLive(status: string | null | undefined) {
+  const s = (status ?? "").toLowerCase();
   return /live|1st|2nd|half|inplay|in progress|q\d|set \d/i.test(s) && !s.includes("full time");
 }
 
