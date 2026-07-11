@@ -7,7 +7,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.sports-research]
-verify_jwt = true
+verify_jwt = false
 
 [functions.ai-settings]
-verify_jwt = true
+verify_jwt = false
