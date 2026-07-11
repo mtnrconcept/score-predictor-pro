@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.settle-predictions]
 verify_jwt = false
+
+[functions.sports-research]
+verify_jwt = true
