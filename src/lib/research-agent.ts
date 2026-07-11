@@ -9,10 +9,21 @@ export async function runSportsResearch(request: string) {
     throw new Error("La demande doit contenir entre 10 et 1 500 caractères.");
   }
 
+  const { data: auth } = await supabase.auth.getSession();
+  if (!auth.session) {
+    throw new Error("Connecte-toi pour lancer une analyse GPT-5.6.");
+  }
+
   const { data, error } = await supabase.functions.invoke("sports-research", {
     body: { request: normalized },
   });
-  if (error) throw new Error(error.message || "L'analyse n'a pas pu être lancée.");
+  if (error) {
+    const status = (error as { context?: { status?: number } }).context?.status;
+    if (status === 401) throw new Error("Ta session a expiré. Reconnecte-toi puis réessaie.");
+    throw new Error(
+      "Impossible de joindre le service d'analyse. Vérifie ta connexion puis réessaie.",
+    );
+  }
   if (data?.error) throw new Error(data.error);
 
   return {

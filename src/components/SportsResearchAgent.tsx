@@ -1,12 +1,14 @@
 import { useMutation } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { BrainCircuit, ExternalLink, Loader2, Search, ShieldAlert } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { runSportsResearch } from "@/lib/research-agent";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { supabase } from "@/integrations/supabase/client";
 
 const EXAMPLES = [
   "Analyse tous les matchs de la Coupe du monde à venir",
@@ -16,10 +18,24 @@ const EXAMPLES = [
 
 export function SportsResearchAgent() {
   const [request, setRequest] = useState(EXAMPLES[0]);
+  const [authReady, setAuthReady] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
   const analysis = useMutation({
     mutationFn: () => runSportsResearch(request),
   });
   const result = analysis.data?.research;
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setAuthenticated(Boolean(data.session));
+      setAuthReady(true);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthenticated(Boolean(session));
+      setAuthReady(true);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
 
   return (
     <section className="border-b border-border bg-primary/5">
@@ -56,21 +72,38 @@ export function SportsResearchAgent() {
                 </button>
               ))}
             </div>
-            <Button
-              className="mt-4"
-              disabled={analysis.isPending || request.trim().length < 10}
-              onClick={() => analysis.mutate()}
-            >
-              {analysis.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Recherche et analyse en cours…
-                </>
-              ) : (
-                <>
-                  <Search className="mr-2 h-4 w-4" /> Lancer l'analyse complète
-                </>
-              )}
-            </Button>
+            {!authReady ? (
+              <Button className="mt-4" disabled>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Vérification de la session…
+              </Button>
+            ) : authenticated ? (
+              <Button
+                className="mt-4"
+                disabled={analysis.isPending || request.trim().length < 10}
+                onClick={() => analysis.mutate()}
+              >
+                {analysis.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Recherche et analyse en cours…
+                  </>
+                ) : (
+                  <>
+                    <Search className="mr-2 h-4 w-4" /> Lancer l'analyse complète
+                  </>
+                )}
+              </Button>
+            ) : (
+              <div className="mt-4 rounded-lg border border-primary/30 bg-primary/10 p-4">
+                <p className="text-sm text-foreground">
+                  Connecte-toi pour lancer une analyse GPT-5.6 sécurisée.
+                </p>
+                <Button asChild className="mt-3">
+                  <Link to="/auth" search={{ next: "/" }}>
+                    Se connecter et analyser
+                  </Link>
+                </Button>
+              </div>
+            )}
           </div>
           <Card className="bg-background/80">
             <CardHeader>
