@@ -16,13 +16,22 @@ export async function runSportsResearch(request: string) {
 
   const { data, error } = await supabase.functions.invoke("sports-research", {
     body: { request: normalized },
+    headers: { Authorization: `Bearer ${auth.session.access_token}` },
   });
   if (error) {
-    const status = (error as { context?: { status?: number } }).context?.status;
+    const response = (error as { context?: Response }).context;
+    const status = response?.status;
+    let backendMessage: string | undefined;
+    if (response) {
+      try {
+        const payload = await response.clone().json();
+        backendMessage = typeof payload?.error === "string" ? payload.error : undefined;
+      } catch {
+        // Ignore non-JSON gateway responses.
+      }
+    }
     if (status === 401) throw new Error("Ta session a expiré. Reconnecte-toi puis réessaie.");
-    throw new Error(
-      "Impossible de joindre le service d'analyse. Vérifie ta connexion puis réessaie.",
-    );
+    throw new Error(backendMessage || "Impossible de joindre le service d'analyse. Réessaie.");
   }
   if (data?.error) throw new Error(data.error);
 
