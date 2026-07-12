@@ -6,6 +6,7 @@ import { searchMatchContext, formatSnippetsForPrompt } from "./firecrawl.server"
 import { fetchHeadToHead, getMatchDetail, type H2HStats } from "./matches.functions";
 import { buildPredictionEngineInput } from "./prediction-data.server";
 import { predictFootballMatch } from "./prediction-engine";
+import { resolveOpenAiModel } from "./openai-model";
 import { PredictionSchema, type Prediction } from "./prediction-schema";
 
 export type { Prediction } from "./prediction-schema";
@@ -91,7 +92,7 @@ export const generatePrediction = createServerFn({ method: "POST" })
         user_id: context.userId,
         match_id: data.matchId,
         status: "running",
-        model: process.env.OPENAI_MODEL || "gpt-5.5",
+        model: resolveOpenAiModel(process.env.OPENAI_MODEL),
         engine_version: "0.4.0",
       })
       .select("id")

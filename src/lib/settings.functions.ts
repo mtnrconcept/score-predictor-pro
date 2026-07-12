@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { supabase } from "@/integrations/supabase/client";
+import { DEFAULT_OPENAI_MODEL } from "./openai-model";
 import { requireVerifiedAccessToken } from "./supabase-session";
 
 const ApiKeySchema = z
@@ -44,7 +45,7 @@ export async function getAiSettings() {
   return {
     personalKeyConfigured: data.personalKeyConfigured === true,
     applicationKeyConfigured: data.applicationKeyConfigured === true,
-    model: String(data.model ?? "gpt-5.5"),
+    model: String(data.model ?? DEFAULT_OPENAI_MODEL),
   };
 }
 
@@ -63,7 +64,7 @@ export async function testOpenAiConnection() {
   const data = await invokeAiSettings({ action: "test" });
   return {
     ok: data.ok === true,
-    model: String(data.model ?? "gpt-5.5"),
+    model: String(data.model ?? DEFAULT_OPENAI_MODEL),
     source: data.source === "personal" ? ("personal" as const) : ("application" as const),
   };
 }

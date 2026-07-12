@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DEFAULT_OPENAI_MODEL } from "@/lib/openai-model";
 import {
   deleteOpenAiApiKey,
   getAiSettings,
@@ -80,7 +81,9 @@ function SettingsPage() {
             </h2>
             <p className="mt-1 text-xs text-muted-foreground">
               Modèle actif :{" "}
-              <span className="font-mono text-foreground">{settings.data?.model ?? "gpt-5.5"}</span>
+              <span className="font-mono text-foreground">
+                {settings.data?.model ?? DEFAULT_OPENAI_MODEL}
+              </span>
             </p>
           </div>
           {settings.isLoading ? (
