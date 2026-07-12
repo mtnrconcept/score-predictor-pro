@@ -12,5 +12,8 @@ verify_jwt = false
 [functions.sports-research]
 verify_jwt = false
 
+[functions.prediction-ai]
+verify_jwt = false
+
 [functions.ai-settings]
 verify_jwt = false

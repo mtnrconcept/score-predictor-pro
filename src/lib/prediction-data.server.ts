@@ -87,6 +87,7 @@ function fixtureToSample(fixture: FixtureRow, teamId: string): TeamMatchSample |
 export async function buildPredictionEngineInput(
   match: MatchSummary,
   h2h: H2HStats,
+  suppliedClient?: any,
 ): Promise<PredictionEngineInput> {
   const fallback: PredictionEngineInput = {
     home: fallbackTeam(match.homeTeam, h2h),
@@ -96,8 +97,8 @@ export async function buildPredictionEngineInput(
   if (!match.startTime) return fallback;
 
   try {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const db = supabaseAdmin as any;
+    if (!suppliedClient) return fallback;
+    const db = suppliedClient;
     const kickoff = new Date(match.startTime).getTime();
     const from = new Date(kickoff - 6 * 3_600_000).toISOString();
     const to = new Date(kickoff + 6 * 3_600_000).toISOString();
@@ -120,19 +121,6 @@ export async function buildPredictionEngineInput(
       })),
     );
     if (!resolution) return fallback;
-    await db.from("fixture_provider_mappings").upsert({
-      provider: match.provider ?? "thesportsdb",
-      provider_fixture_id: match.providerFixtureId ?? match.id,
-      fixture_id: resolution.id,
-      resolution_confidence: resolution.confidence,
-      manually_verified: false,
-      raw_data: {
-        homeTeam: match.homeTeam,
-        awayTeam: match.awayTeam,
-        startsAt: match.startTime,
-      },
-      updated_at: new Date().toISOString(),
-    });
     const target = (candidates as any[]).find((row) => row.id === resolution.id);
     if (!target) return fallback;
 

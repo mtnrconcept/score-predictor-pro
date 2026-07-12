@@ -8,6 +8,8 @@ on:
       - ".github/workflows/deploy-supabase-ai.yml"
       - "supabase/functions/ai-settings/**"
       - "supabase/functions/sports-research/**"
+      - "supabase/functions/prediction-ai/**"
+      - "supabase/functions/_shared/prediction-schema.ts"
 
 permissions:
   contents: read
@@ -69,6 +71,7 @@ jobs:
         run: |
           supabase functions deploy ai-settings --project-ref "$SUPABASE_PROJECT_REF"
           supabase functions deploy sports-research --project-ref "$SUPABASE_PROJECT_REF"
+          supabase functions deploy prediction-ai --project-ref "$SUPABASE_PROJECT_REF"
 
       - name: Verify Supabase AI runtime
         shell: bash
