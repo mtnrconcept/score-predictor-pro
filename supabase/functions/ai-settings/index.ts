@@ -36,6 +36,23 @@ async function authenticatedUser(req: Request) {
   return error ? null : data.user;
 }
 
+async function resolveOpenAiKey(
+  db: ReturnType<typeof adminClient>,
+  userId: string,
+): Promise<{ key: string; source: "personal" | "application" } | null> {
+  const { data, error } = await db.rpc("get_app_secret", {
+    requested_name: secretName(userId),
+  });
+  if (error) {
+    console.error("Unable to read personal OpenAI key", { code: error.code });
+  }
+  if (typeof data === "string" && data.trim().length > 0) {
+    return { key: data.trim(), source: "personal" };
+  }
+  const applicationKey = Deno.env.get("OPENAI_API_KEY")?.trim();
+  return applicationKey ? { key: applicationKey, source: "application" } : null;
+}
+
 function adminClient() {
   const url = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -78,6 +95,58 @@ Deno.serve(async (req: Request) => {
       applicationKeyConfigured: Boolean(Deno.env.get("OPENAI_API_KEY")),
       model: Deno.env.get("OPENAI_RESEARCH_MODEL") || "gpt-5.5",
     });
+  }
+
+  if (body.action === "test") {
+    const resolved = await resolveOpenAiKey(db, user.id);
+    if (!resolved) {
+      return json({
+        error: "Aucune clé OpenAI personnelle ou serveur n'est configurée.",
+      }, 503);
+    }
+    const model = Deno.env.get("OPENAI_RESEARCH_MODEL") || "gpt-5.5";
+    let response: Response;
+    try {
+      response = await fetch(
+        `https://api.openai.com/v1/models/${encodeURIComponent(model)}`,
+        {
+          signal: AbortSignal.timeout(15_000),
+          headers: { authorization: `Bearer ${resolved.key}` },
+        },
+      );
+    } catch (error) {
+      const timedOut = error instanceof DOMException &&
+        error.name === "TimeoutError";
+      return json(
+        {
+          error: timedOut
+            ? "Le test OpenAI a dépassé 15 secondes. Réessaie."
+            : "Supabase ne parvient pas à joindre OpenAI.",
+        },
+        timedOut ? 504 : 502,
+      );
+    }
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      const code = payload?.error?.code;
+      console.error("OpenAI configuration test failed", {
+        status: response.status,
+        code,
+      });
+      const message = response.status === 401
+        ? "La clé OpenAI configurée est invalide ou révoquée."
+        : response.status === 403
+        ? "La clé OpenAI n'a pas la permission d'utiliser ce modèle."
+        : response.status === 404
+        ? `Le modèle ${model} n'est pas accessible avec ce projet OpenAI.`
+        : response.status === 429
+        ? "Le quota ou la limite de débit OpenAI est atteint."
+        : "Le test du service OpenAI a échoué.";
+      return json({ error: message }, response.status === 401 ? 401 : 502);
+    }
+
+    return json({ ok: true, model, source: resolved.source });
   }
 
   if (body.action === "save") {

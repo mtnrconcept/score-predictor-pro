@@ -21,14 +21,24 @@ function secretName(userId: string): string {
   return `openai_api_key_${userId.replaceAll("-", "_")}`;
 }
 
-async function resolveApiKey(req: Request): Promise<string | null> {
+async function authenticatedUserId(
+  req: Request,
+): Promise<{ userId: string } | { error: string; status: number }> {
   const url = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const authorization = req.headers.get("authorization");
-  if (!url || !anonKey || !serviceKey || !authorization) return null;
+  if (!url || !anonKey) {
+    console.error("Supabase authentication environment is incomplete");
+    return {
+      error: "Le service d'authentification est indisponible.",
+      status: 503,
+    };
+  }
+  if (!authorization) {
+    return { error: "Connecte-toi pour lancer une analyse.", status: 401 };
+  }
   const token = authorization.replace(/^Bearer\s+/i, "").trim();
-  if (!token) return null;
+  if (!token) return { error: "Session invalide ou expirée.", status: 401 };
 
   const userClient = createClient(url, anonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -36,19 +46,31 @@ async function resolveApiKey(req: Request): Promise<string | null> {
   const { data: userData, error: userError } = await userClient.auth.getUser(
     token,
   );
-  if (userError || !userData.user) return null;
+  if (userError || !userData.user) {
+    return { error: "Session invalide ou expirée.", status: 401 };
+  }
+  return { userId: userData.user.id };
+}
+
+async function resolveApiKey(userId: string): Promise<string | null> {
+  const url = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !serviceKey) {
+    console.error("Supabase Vault environment is incomplete");
+    return null;
+  }
 
   const admin = createClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const { data, error } = await admin.rpc("get_app_secret", {
-    requested_name: secretName(userData.user.id),
+    requested_name: secretName(userId),
   });
   if (error) {
     console.error("Unable to read personal OpenAI key", { code: error.code });
   }
-  if (typeof data === "string" && data.length > 0) return data;
-  return Deno.env.get("OPENAI_API_KEY") || null;
+  if (typeof data === "string" && data.trim().length > 0) return data.trim();
+  return Deno.env.get("OPENAI_API_KEY")?.trim() || null;
 }
 
 const STRING = { type: "string" } as const;
@@ -166,11 +188,14 @@ Deno.serve(async (req: Request) => {
   }
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
 
-  const apiKey = await resolveApiKey(req);
+  const auth = await authenticatedUserId(req);
+  if ("error" in auth) return json({ error: auth.error }, auth.status);
+
+  const apiKey = await resolveApiKey(auth.userId);
   if (!apiKey) {
     return json({
       error: "Aucune clé OpenAI personnelle ou serveur n'est configurée.",
-    }, 500);
+    }, 503);
   }
 
   let request = "";
@@ -281,6 +306,19 @@ défini, explique-le. Réponds en français et rappelle qu'un pronostic n'est ja
       }).`
       : "L'analyse OpenAI a échoué. Réessaie dans quelques instants.";
     return json({ error: message }, response.status === 401 ? 401 : 502);
+  }
+
+  if (payload?.status === "incomplete") {
+    const reason = payload?.incomplete_details?.reason;
+    console.error("OpenAI sports research incomplete", { reason });
+    return json(
+      {
+        error: reason === "max_output_tokens"
+          ? "La demande contient trop de matchs pour une seule analyse. Réduis le périmètre (par journée, groupe ou semaine)."
+          : "OpenAI n'a pas pu terminer l'analyse. Réduis le périmètre puis réessaie.",
+      },
+      422,
+    );
   }
 
   const output = extractOutputText(payload);
