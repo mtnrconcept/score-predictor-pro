@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { supabase } from "@/integrations/supabase/client";
+import { requireVerifiedAccessToken } from "./supabase-session";
 
 const ApiKeySchema = z
   .string()
@@ -10,12 +11,11 @@ const ApiKeySchema = z
   .refine((key) => key.startsWith("sk-"), "La clé doit commencer par sk-.");
 
 async function invokeAiSettings(body: Record<string, unknown>) {
-  const { data: auth } = await supabase.auth.getSession();
-  if (!auth.session) throw new Error("Ta session a expiré. Reconnecte-toi puis réessaie.");
+  const accessToken = await requireVerifiedAccessToken();
 
   const { data, error } = await supabase.functions.invoke("ai-settings", {
     body,
-    headers: { Authorization: `Bearer ${auth.session.access_token}` },
+    headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (error) {
     const response = (error as { context?: Response }).context;
@@ -29,7 +29,8 @@ async function invokeAiSettings(body: Record<string, unknown>) {
         // Ignore non-JSON gateway responses.
       }
     }
-    if (status === 401) throw new Error("Ta session a expiré. Reconnecte-toi puis réessaie.");
+    if (status === 401)
+      throw new Error("Ta session n'est plus valide. Reconnecte-toi puis réessaie.");
     throw new Error(
       backendMessage || "Le service de configuration IA est momentanément indisponible.",
     );
@@ -56,4 +57,13 @@ export async function saveOpenAiApiKey(input: { data: { apiKey: string } }) {
 export async function deleteOpenAiApiKey() {
   await invokeAiSettings({ action: "delete" });
   return { configured: false };
+}
+
+export async function testOpenAiConnection() {
+  const data = await invokeAiSettings({ action: "test" });
+  return {
+    ok: data.ok === true,
+    model: String(data.model ?? "gpt-5.5"),
+    source: data.source === "personal" ? ("personal" as const) : ("application" as const),
+  };
 }

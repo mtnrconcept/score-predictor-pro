@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
+import { getVerifiedSupabaseSession } from "@/lib/supabase-session";
 
 const EXAMPLES = [
   "Analyse tous les matchs de la Coupe du monde à venir",
@@ -26,15 +27,20 @@ export function SportsResearchAgent() {
   const result = analysis.data?.research;
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setAuthenticated(Boolean(data.session));
+    let active = true;
+    getVerifiedSupabaseSession().then((session) => {
+      if (!active) return;
+      setAuthenticated(Boolean(session));
       setAuthReady(true);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setAuthenticated(Boolean(session));
       setAuthReady(true);
     });
-    return () => listener.subscription.unsubscribe();
+    return () => {
+      active = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   return (

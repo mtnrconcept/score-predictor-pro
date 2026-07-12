@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { SportsResearchSchema } from "./research-schema";
+import { requireVerifiedAccessToken } from "./supabase-session";
 
 export type { SportsResearch } from "./research-schema";
 
@@ -9,14 +10,11 @@ export async function runSportsResearch(request: string) {
     throw new Error("La demande doit contenir entre 10 et 1 500 caractères.");
   }
 
-  const { data: auth } = await supabase.auth.getSession();
-  if (!auth.session) {
-    throw new Error("Connecte-toi pour lancer une analyse GPT-5.5.");
-  }
+  const accessToken = await requireVerifiedAccessToken();
 
   const { data, error } = await supabase.functions.invoke("sports-research", {
     body: { request: normalized },
-    headers: { Authorization: `Bearer ${auth.session.access_token}` },
+    headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (error) {
     const response = (error as { context?: Response }).context;
@@ -30,7 +28,8 @@ export async function runSportsResearch(request: string) {
         // Ignore non-JSON gateway responses.
       }
     }
-    if (status === 401) throw new Error("Ta session a expiré. Reconnecte-toi puis réessaie.");
+    if (status === 401)
+      throw new Error("Ta session n'est plus valide. Reconnecte-toi puis réessaie.");
     throw new Error(backendMessage || "Impossible de joindre le service d'analyse. Réessaie.");
   }
   if (data?.error) throw new Error(data.error);

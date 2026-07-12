@@ -1,13 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Eye, EyeOff, KeyRound, Loader2, ShieldCheck, Trash2 } from "lucide-react";
+import { CheckCircle2, Eye, EyeOff, KeyRound, Loader2, ShieldCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { deleteOpenAiApiKey, getAiSettings, saveOpenAiApiKey } from "@/lib/settings.functions";
+import {
+  deleteOpenAiApiKey,
+  getAiSettings,
+  saveOpenAiApiKey,
+  testOpenAiConnection,
+} from "@/lib/settings.functions";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
@@ -41,6 +46,16 @@ function SettingsPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const test = useMutation({
+    mutationFn: () => testOpenAiConnection(),
+    onSuccess: (result) => {
+      toast.success(
+        `Connexion OpenAI validée avec ${result.model} (${result.source === "personal" ? "clé personnelle" : "clé serveur"}).`,
+      );
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const configured = settings.data?.personalKeyConfigured ?? false;
 
   return (
@@ -65,9 +80,7 @@ function SettingsPage() {
             </h2>
             <p className="mt-1 text-xs text-muted-foreground">
               Modèle actif :{" "}
-              <span className="font-mono text-foreground">
-                {settings.data?.model ?? "gpt-5.5"}
-              </span>
+              <span className="font-mono text-foreground">{settings.data?.model ?? "gpt-5.5"}</span>
             </p>
           </div>
           {settings.isLoading ? (
@@ -143,6 +156,19 @@ function SettingsPage() {
                 <Trash2 className="mr-2 h-4 w-4" /> Supprimer
               </Button>
             )}
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => test.mutate()}
+              disabled={test.isPending || settings.isLoading}
+            >
+              {test.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+              )}
+              Tester la clé et le service IA
+            </Button>
           </div>
         </form>
       </section>
