@@ -104,6 +104,9 @@ export const generatePrediction = createServerFn({ method: "POST" })
       .join("\n");
 
     const { data: generated, error } = await context.supabase.functions.invoke("prediction-ai", {
+      headers: {
+        Authorization: `Bearer ${context.accessToken}`,
+      },
       body: {
         matchId: data.matchId,
         sport: match.sport,
