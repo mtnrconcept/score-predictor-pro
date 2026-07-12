@@ -2,6 +2,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import {
+  DEFAULT_SUPABASE_PUBLISHABLE_KEY,
+  DEFAULT_SUPABASE_URL,
+} from "@/integrations/supabase/project-config";
 import { searchMatchContext, formatSnippetsForPrompt } from "./firecrawl.server";
 import { fetchHeadToHead, getMatchDetail, type H2HStats } from "./matches.functions";
 import { buildPredictionEngineInput } from "./prediction-data.server";
@@ -103,11 +107,16 @@ export const generatePrediction = createServerFn({ method: "POST" })
       .filter(Boolean)
       .join("\n");
 
-    const { data: generated, error } = await context.supabase.functions.invoke("prediction-ai", {
+    // Call the Edge Function directly: functions.invoke may replace a custom
+    // Authorization header with the client's API key in server runtimes.
+    const response = await fetch(`${DEFAULT_SUPABASE_URL}/functions/v1/prediction-ai`, {
+      method: "POST",
       headers: {
+        apikey: DEFAULT_SUPABASE_PUBLISHABLE_KEY,
         Authorization: `Bearer ${context.accessToken}`,
+        "Content-Type": "application/json",
       },
-      body: {
+      body: JSON.stringify({
         matchId: data.matchId,
         sport: match.sport,
         matchContext,
@@ -120,19 +129,12 @@ export const generatePrediction = createServerFn({ method: "POST" })
           matchesAnalyzed: h2h.played,
         },
         statistical,
-      },
+      }),
     });
-    if (error) {
-      const response = (error as { context?: Response }).context;
-      let backendMessage: string | undefined;
-      if (response) {
-        try {
-          const payload = await response.clone().json();
-          backendMessage = typeof payload?.error === "string" ? payload.error : undefined;
-        } catch {
-          // Ignore non-JSON gateway responses.
-        }
-      }
+    const generated = await response.json().catch(() => null);
+    if (!response.ok) {
+      const backendMessage =
+        generated && typeof generated.error === "string" ? generated.error : undefined;
       throw new Error(backendMessage || "Le service de pronostic IA est indisponible.");
     }
     const prediction = PredictionSchema.parse(generated?.prediction);
