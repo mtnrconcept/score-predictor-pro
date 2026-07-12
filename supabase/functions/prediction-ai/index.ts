@@ -4,6 +4,7 @@ import { zodTextFormat } from "npm:openai@6.46.0/helpers/zod";
 
 import { resolveOpenAiResearchModel } from "../_shared/openai-model.ts";
 import { type Prediction, PredictionSchema } from "../_shared/prediction-schema.ts";
+import { extractBearerToken, userAuthorizationHeaders } from "../_shared/auth-token.ts";
 
 const corsHeaders = {
   "access-control-allow-origin": "*",
@@ -32,8 +33,13 @@ function clients(req: Request) {
   const authorization = req.headers.get("authorization");
   if (!url || !anonKey || !serviceKey) return null;
   return {
+    verifier: createClient(url, anonKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    }),
     user: createClient(url, anonKey, {
-      global: { headers: { authorization: authorization! } },
+      // Keep canonical header casing. A lower-case duplicate is merged by
+      // Headers into `Bearer token, Bearer token`, which Auth rejects.
+      global: { headers: userAuthorizationHeaders(authorization!) },
       auth: { persistSession: false, autoRefreshToken: false },
     }),
     admin: createClient(url, serviceKey, {
@@ -135,17 +141,20 @@ Deno.serve(async (req) => {
   if (!db) {
     return json({ error: "Le service Supabase est mal configuré." }, 503);
   }
-  const accessToken = req.headers
-    .get("authorization")!
-    .replace(/^Bearer\s+/i, "")
-    .trim();
+  const accessToken = extractBearerToken(req.headers.get("authorization"));
   if (!accessToken) {
     return json({ error: "Connecte-toi pour générer un pronostic." }, 401);
   }
   // Edge Functions have no persisted browser session. Always validate the
   // bearer token explicitly instead of asking the client for a local session.
-  const { data: auth, error: authError } = await db.user.auth.getUser(accessToken);
+  // Validate on a client without a pre-existing Authorization header. The
+  // authenticated client remains separate and is only used for RLS queries.
+  const { data: auth, error: authError } = await db.verifier.auth.getUser(accessToken);
   if (authError || !auth.user) {
+    console.warn("Prediction authentication rejected", {
+      code: authError?.code,
+      status: authError?.status,
+    });
     return json({ error: "Session invalide ou expirée." }, 401);
   }
 
