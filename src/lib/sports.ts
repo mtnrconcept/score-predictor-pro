@@ -46,7 +46,8 @@ export const MAJOR_LEAGUES: Array<{ id: string; sport: SportKey; label: string }
   { id: "4481", sport: "soccer", label: "UEFA Europa League" },
   { id: "4482", sport: "soccer", label: "UEFA Conference League" },
   { id: "4429", sport: "soccer", label: "FIFA World Cup Qualifiers" },
-  { id: "4574", sport: "soccer", label: "FIFA World Cup" },
+  // TheSportsDB does not expose the FIFA World Cup 2026 through the free league feed.
+  // The full tournament is imported through the public ESPN catalog instead.
   { id: "4485", sport: "soccer", label: "UEFA Euro" },
   { id: "4497", sport: "soccer", label: "Copa America" },
   { id: "4508", sport: "soccer", label: "Copa Libertadores" },

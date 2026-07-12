@@ -31,6 +31,7 @@ jobs:
           deno check
           supabase/functions/ai-settings/index.ts
           supabase/functions/sports-research/index.ts
+          supabase/functions/import-public-football/index.ts
           supabase/functions/import-football/index.ts
           supabase/functions/settle-predictions/index.ts
       - run: npm run build
