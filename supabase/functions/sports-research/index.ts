@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.110.2";
+import { resolveOpenAiResearchModel } from "../_shared/openai-model.ts";
 const corsHeaders = {
   "access-control-allow-origin": "*",
   "access-control-allow-headers":
@@ -182,7 +183,7 @@ Deno.serve(async (req: Request) => {
     return json({
       status: "ok",
       openAiConfigured: Boolean(Deno.env.get("OPENAI_API_KEY")),
-      model: Deno.env.get("OPENAI_RESEARCH_MODEL") || "gpt-5.5",
+      model: resolveOpenAiResearchModel(),
     });
   }
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
@@ -210,7 +211,7 @@ Deno.serve(async (req: Request) => {
     }, 400);
   }
 
-  const model = Deno.env.get("OPENAI_RESEARCH_MODEL") || "gpt-5.5";
+  const model = resolveOpenAiResearchModel();
   const system =
     `Tu es l'agent de recherche football d'OddsIQ. Transforme la demande en analyse
 factuelle, récente, sourcée et structurée. Utilise la recherche web pour identifier tous les matchs

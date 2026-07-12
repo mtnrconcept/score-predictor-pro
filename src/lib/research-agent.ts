@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { DEFAULT_OPENAI_MODEL } from "./openai-model";
 import { SportsResearchSchema } from "./research-schema";
 import { requireVerifiedAccessToken } from "./supabase-session";
 
@@ -36,6 +37,6 @@ export async function runSportsResearch(request: string) {
 
   return {
     research: SportsResearchSchema.parse(data?.research),
-    model: String(data?.model ?? "gpt-5.5"),
+    model: String(data?.model ?? DEFAULT_OPENAI_MODEL),
   };
 }

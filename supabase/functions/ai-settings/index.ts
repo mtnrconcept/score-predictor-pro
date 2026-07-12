@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.110.2";
+import { resolveOpenAiResearchModel } from "../_shared/openai-model.ts";
 
 const corsHeaders = {
   "access-control-allow-origin": "*",
@@ -92,7 +93,7 @@ Deno.serve(async (req: Request) => {
     return json({
       personalKeyConfigured: data === true,
       applicationKeyConfigured: Boolean(Deno.env.get("OPENAI_API_KEY")),
-      model: Deno.env.get("OPENAI_RESEARCH_MODEL") || "gpt-5.5",
+      model: resolveOpenAiResearchModel(),
     });
   }
 
@@ -103,7 +104,7 @@ Deno.serve(async (req: Request) => {
         error: "Aucune clé OpenAI personnelle ou serveur n'est configurée.",
       }, 503);
     }
-    const model = Deno.env.get("OPENAI_RESEARCH_MODEL") || "gpt-5.5";
+    const model = resolveOpenAiResearchModel();
     let response: Response;
     try {
       response = await fetch(

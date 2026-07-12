@@ -49,7 +49,7 @@ export function SportsResearchAgent() {
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-primary">
-              <BrainCircuit className="h-4 w-4" /> Agent de recherche GPT-5.5
+              <BrainCircuit className="h-4 w-4" /> Agent de recherche GPT-5.6 Sol
             </div>
             <h2 className="mt-2 font-display text-2xl font-bold sm:text-3xl">
               Demande une analyse complète, en langage naturel
@@ -101,7 +101,7 @@ export function SportsResearchAgent() {
             ) : (
               <div className="mt-4 rounded-lg border border-primary/30 bg-primary/10 p-4">
                 <p className="text-sm text-foreground">
-                  Connecte-toi pour lancer une analyse GPT-5.5 sécurisée.
+                  Connecte-toi pour lancer une analyse GPT-5.6 Sol sécurisée.
                 </p>
                 <Button asChild className="mt-3">
                   <Link to="/auth" search={{ next: "/" }}>

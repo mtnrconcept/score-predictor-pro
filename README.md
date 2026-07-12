@@ -41,7 +41,9 @@ Deux modes sont disponibles :
 - `OPENAI_API_KEY` dans l'environnement serveur pour une clé commune à l'application ;
 - la page `/settings` pour une clé personnelle. La valeur passe par une fonction serveur authentifiée et est chiffrée dans Supabase Vault. Le navigateur ne peut ensuite ni la relire ni l'exporter.
 
-La clé personnelle a priorité sur la clé globale. Le modèle peut être changé avec `OPENAI_MODEL`.
+La clé personnelle a priorité sur la clé globale. Le modèle principal peut être changé avec
+`OPENAI_MODEL` et le modèle de recherche Edge avec `OPENAI_RESEARCH_MODEL`. Une ancienne valeur
+`gpt-5.5` est automatiquement migrée vers `gpt-5.6-sol`.
 
 ## Supabase
 
