@@ -3,12 +3,19 @@ import OpenAI from "npm:openai@6.46.0";
 import { zodTextFormat } from "npm:openai@6.46.0/helpers/zod";
 
 import { resolveOpenAiResearchModel } from "../_shared/openai-model.ts";
-import { type Prediction, PredictionSchema } from "../_shared/prediction-schema.ts";
-import { extractBearerToken, userAuthorizationHeaders } from "../_shared/auth-token.ts";
+import {
+  type Prediction,
+  PredictionSchema,
+} from "../_shared/prediction-schema.ts";
+import {
+  extractBearerToken,
+  userAuthorizationHeaders,
+} from "../_shared/auth-token.ts";
 
 const corsHeaders = {
   "access-control-allow-origin": "*",
-  "access-control-allow-headers": "authorization, x-client-info, apikey, content-type",
+  "access-control-allow-headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 function json(body: unknown, status = 200): Response {
@@ -73,10 +80,13 @@ function outcomeFrom(statistical: Statistical): "home" | "draw" | "away" {
   return [...outcomes].sort((a, b) => b[1] - a[1])[0][0];
 }
 
-function enforceStatisticalCore(ai: Prediction, statistical: Statistical): Prediction {
+function enforceStatisticalCore(
+  ai: Prediction,
+  statistical: Statistical,
+): Prediction {
   const top = statistical.topScorelines?.[0] ?? { home: 0, away: 0 };
-  const totalExpectedGoals =
-    Number(statistical.expectedHomeGoals) + Number(statistical.expectedAwayGoals);
+  const totalExpectedGoals = Number(statistical.expectedHomeGoals) +
+    Number(statistical.expectedAwayGoals);
   const quality = Number(statistical.dataQuality);
   const confidenceCeiling = statistical.abstention?.shouldAbstain
     ? Math.min(49, quality)
@@ -149,7 +159,9 @@ Deno.serve(async (req) => {
   // bearer token explicitly instead of asking the client for a local session.
   // Validate on a client without a pre-existing Authorization header. The
   // authenticated client remains separate and is only used for RLS queries.
-  const { data: auth, error: authError } = await db.verifier.auth.getUser(accessToken);
+  const { data: auth, error: authError } = await db.verifier.auth.getUser(
+    accessToken,
+  );
   if (authError || !auth.user) {
     console.warn("Prediction authentication rejected", {
       code: authError?.code,
@@ -158,7 +170,9 @@ Deno.serve(async (req) => {
     return json({ error: "Session invalide ou expirée." }, 401);
   }
 
-  const body = (await req.json().catch(() => null)) as Record<string, any> | null;
+  const body = (await req.json().catch(() => null)) as
+    | Record<string, any>
+    | null;
   if (!body?.matchId || !body?.statistical || !body?.matchContext) {
     return json({ error: "invalid_prediction_request" }, 400);
   }
@@ -171,14 +185,18 @@ Deno.serve(async (req) => {
   ) {
     return json({ error: "prediction_request_too_large" }, 413);
   }
-  const { data: quota, error: quotaError } = await db.user.rpc("consume_prediction_quota");
+  const { data: quota, error: quotaError } = await db.user.rpc(
+    "consume_prediction_quota",
+  );
   if (quotaError) {
     return json({ error: "Le contrôle de quota est indisponible." }, 503);
   }
   if (!quota?.allowed) {
     return json(
       {
-        error: `Quota quotidien atteint (${quota?.used ?? 0}/${quota?.limit ?? 0}).`,
+        error: `Quota quotidien atteint (${quota?.used ?? 0}/${
+          quota?.limit ?? 0
+        }).`,
       },
       429,
     );
@@ -211,16 +229,21 @@ Deno.serve(async (req) => {
       input: [
         {
           role: "system",
-          content: `Tu es l'analyste éditorial d'un moteur de pronostic sportif. Le calcul
+          content:
+            `Tu es l'analyste éditorial d'un moteur de pronostic sportif. Le calcul
 quantitatif fourni est la source de vérité. N'invente aucune statistique, blessure, composition,
 source ou joueur. Si une donnée manque, indique-le. Si shouldAbstain est vrai, ne recommande
 aucune mise. Réponds en français et rappelle que les estimations ne sont jamais une garantie.`,
         },
         {
           role: "user",
-          content: `MATCH\n${body.matchContext}\n\nMODÈLE STATISTIQUE\n${JSON.stringify(
-            body.statistical,
-          )}\n\nCONFRONTATIONS\n${body.headToHeadContext || "Aucune donnée fiable."}\n\nSOURCES\n${
+          content: `MATCH\n${body.matchContext}\n\nMODÈLE STATISTIQUE\n${
+            JSON.stringify(
+              body.statistical,
+            )
+          }\n\nCONFRONTATIONS\n${
+            body.headToHeadContext || "Aucune donnée fiable."
+          }\n\nSOURCES\n${
             body.newsContext || "Aucune source récente vérifiée."
           }`,
         },
@@ -230,7 +253,10 @@ aucune mise. Réponds en français et rappelle que les estimations ne sont jamai
     if (!response.output_parsed) {
       throw new Error("missing_structured_prediction");
     }
-    let prediction = enforceStatisticalCore(response.output_parsed, body.statistical);
+    let prediction = enforceStatisticalCore(
+      response.output_parsed,
+      body.statistical,
+    );
     if (body.headToHeadStats) {
       prediction = PredictionSchema.parse({
         ...prediction,
@@ -241,7 +267,9 @@ aucune mise. Réponds en français et rappelle que les estimations ne sont jamai
       await db.admin
         .from("prediction_runs")
         .update({
-          status: body.statistical.abstention?.shouldAbstain ? "abstained" : "completed",
+          status: body.statistical.abstention?.shouldAbstain
+            ? "abstained"
+            : "completed",
           data_quality: body.statistical.dataQuality,
           abstention_reasons: body.statistical.abstention?.reasons ?? [],
           input_snapshot: {
