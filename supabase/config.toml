@@ -3,6 +3,9 @@ project_id = "snzepjldrtojbvrfyjtw"
 [functions.import-football]
 verify_jwt = false
 
+[functions.import-public-football]
+verify_jwt = false
+
 [functions.settle-predictions]
 verify_jwt = false
 

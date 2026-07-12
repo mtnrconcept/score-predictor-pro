@@ -15,11 +15,19 @@ export const Route = createFileRoute("/")({
 function HomePage() {
   const [sport, setSport] = useState<string>("all");
   const [q, setQ] = useState("");
+  const [includeHistory, setIncludeHistory] = useState(false);
   const navigate = useNavigate();
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ["matches", sport],
-    queryFn: () => listMatches({ data: { sport: sport === "all" ? undefined : sport, days: 2 } }),
+    queryKey: ["matches", sport, includeHistory],
+    queryFn: () =>
+      listMatches({
+        data: {
+          sport: sport === "all" ? undefined : sport,
+          days: 2,
+          includeHistory,
+        },
+      }),
     staleTime: 60_000,
   });
 
@@ -68,6 +76,15 @@ function HomePage() {
               />
             </div>
             {isFetching && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+            <button
+              type="button"
+              onClick={() => setIncludeHistory((value) => !value)}
+              className="rounded-md border border-border bg-surface px-3 py-2 text-xs text-muted-foreground hover:text-foreground"
+            >
+              {includeHistory
+                ? "Afficher uniquement les matchs à venir"
+                : "Afficher l'historique importé"}
+            </button>
           </div>
         </div>
       </section>

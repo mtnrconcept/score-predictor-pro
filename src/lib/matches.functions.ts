@@ -1,6 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { MAJOR_LEAGUES, SPORTS, sportFromKey, sportFromTsdb, type SportKey } from "./sports";
+import {
+  DEFAULT_SUPABASE_PUBLISHABLE_KEY,
+  DEFAULT_SUPABASE_URL,
+} from "@/integrations/supabase/project-config";
 
 const TSDB_KEY = "3"; // free public test key
 
@@ -26,7 +30,11 @@ export interface H2HStats {
   events: H2HEvent[];
 }
 
-export async function fetchHeadToHead(matchId: string, homeTeam: string, awayTeam: string): Promise<H2HStats> {
+export async function fetchHeadToHead(
+  matchId: string,
+  homeTeam: string,
+  awayTeam: string,
+): Promise<H2HStats> {
   const url = `https://www.thesportsdb.com/api/v1/json/${TSDB_KEY}/eventsh2h.php?id=${encodeURIComponent(matchId)}`;
   const data = await fetchJson<{ events: any[] | null }>(url);
   const raw = data?.events ?? [];
@@ -40,15 +48,20 @@ export async function fetchHeadToHead(matchId: string, homeTeam: string, awayTea
     awayScore: e.intAwayScore,
     season: e.strSeason ?? null,
   }));
-  let homeWins = 0, awayWins = 0, draws = 0, played = 0;
+  let homeWins = 0,
+    awayWins = 0,
+    draws = 0,
+    played = 0;
   const norm = (s: string | null | undefined) => (s ?? "").toLowerCase().trim();
-  const H = norm(homeTeam), A = norm(awayTeam);
+  const H = norm(homeTeam),
+    A = norm(awayTeam);
   for (const e of events) {
     const hs = e.homeScore != null ? parseInt(e.homeScore, 10) : NaN;
     const as = e.awayScore != null ? parseInt(e.awayScore, 10) : NaN;
     if (Number.isNaN(hs) || Number.isNaN(as)) continue;
     played++;
-    const eh = norm(e.homeTeam), ea = norm(e.awayTeam);
+    const eh = norm(e.homeTeam),
+      ea = norm(e.awayTeam);
     const winner = hs > as ? eh : as > hs ? ea : null;
     if (!winner) draws++;
     else if (winner === H) homeWins++;
@@ -69,6 +82,8 @@ export async function fetchHeadToHead(matchId: string, homeTeam: string, awayTea
 
 export interface MatchSummary {
   id: string;
+  provider?: string;
+  providerFixtureId?: string;
   sport: SportKey;
   sportLabel: string;
   competition: string;
@@ -110,6 +125,8 @@ function mapEvent(e: TsdbEvent): MatchSummary {
   const eventName = e.strEvent?.trim() || "Événement à confirmer";
   return {
     id: e.idEvent,
+    provider: "thesportsdb",
+    providerFixtureId: e.idEvent,
     sport,
     sportLabel: sportFromKey(sport).label,
     competition: e.strLeague?.trim() || "Compétition à confirmer",
@@ -121,9 +138,95 @@ function mapEvent(e: TsdbEvent): MatchSummary {
     homeScore: e.intHomeScore,
     awayScore: e.intAwayScore,
     status: e.strStatus ?? "Scheduled",
-    startTime: e.strTimestamp ?? (e.dateEvent ? `${e.dateEvent}T${e.strTime ?? "00:00:00"}Z` : null),
+    startTime:
+      e.strTimestamp ?? (e.dateEvent ? `${e.dateEvent}T${e.strTime ?? "00:00:00"}Z` : null),
     venue: e.strVenue,
   };
+}
+
+type ImportedFixtureRow = {
+  id: string;
+  provider: string;
+  provider_fixture_id: string;
+  competition_id: string | null;
+  competition_name: string;
+  home_score: number | null;
+  away_score: number | null;
+  starts_at: string;
+  status: string;
+  venue: string | null;
+  home_team: { name: string; logo_url: string | null };
+  away_team: { name: string; logo_url: string | null };
+};
+
+async function fetchImportedFixtures(
+  sport: string | undefined,
+  includeHistory: boolean,
+): Promise<MatchSummary[]> {
+  try {
+    const { createClient } = await import("@supabase/supabase-js");
+    const client = createClient(DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_PUBLISHABLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const now = Date.now();
+    const from = new Date(now - (includeHistory ? 120 : 1) * 86_400_000).toISOString();
+    const to = new Date(now + 90 * 86_400_000).toISOString();
+    let query = client
+      .from("sports_fixtures")
+      .select(
+        "id,provider,provider_fixture_id,competition_id,competition_name,home_score,away_score,starts_at,status,venue,home_team:sports_teams!sports_fixtures_home_team_id_fkey(name,logo_url),away_team:sports_teams!sports_fixtures_away_team_id_fkey(name,logo_url)",
+      )
+      .gte("starts_at", from)
+      .lte("starts_at", to)
+      .order("starts_at", { ascending: true })
+      .limit(includeHistory ? 1500 : 750);
+    if (sport) query = query.eq("sport", sport);
+    const { data, error } = await query;
+    if (error) {
+      console.error("Imported fixtures unavailable", { code: error.code });
+      return [];
+    }
+    return ((data ?? []) as unknown as ImportedFixtureRow[]).map((row) => ({
+      id: `db:${row.id}`,
+      provider: row.provider,
+      providerFixtureId: row.provider_fixture_id,
+      sport: "soccer",
+      sportLabel: "Football",
+      competition: row.competition_name,
+      competitionId: row.competition_id,
+      homeTeam: row.home_team.name,
+      awayTeam: row.away_team.name,
+      homeBadge: row.home_team.logo_url,
+      awayBadge: row.away_team.logo_url,
+      homeScore: row.home_score == null ? null : String(row.home_score),
+      awayScore: row.away_score == null ? null : String(row.away_score),
+      status: row.status,
+      startTime: row.starts_at,
+      venue: row.venue,
+    }));
+  } catch (error) {
+    console.error("Imported fixtures unavailable", error instanceof Error ? error.message : error);
+    return [];
+  }
+}
+
+function dedupeSummaries(events: MatchSummary[]): MatchSummary[] {
+  const seen = new Set<string>();
+  return events.filter((event) => {
+    const parsedStart = event.startTime ? Date.parse(event.startTime) : Number.NaN;
+    const kickoff = Number.isNaN(parsedStart)
+      ? "unknown"
+      : new Date(parsedStart).toISOString().slice(0, 16);
+    const key = [
+      event.sport,
+      event.homeTeam.toLowerCase().trim(),
+      event.awayTeam.toLowerCase().trim(),
+      kickoff,
+    ].join("|");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 async function fetchJson<T>(url: string): Promise<T | null> {
@@ -172,6 +275,7 @@ export const listMatches = createServerFn({ method: "GET" })
       .object({
         sport: z.string().optional(),
         days: z.number().int().min(1).max(7).optional(),
+        includeHistory: z.boolean().optional(),
       })
       .parse(input ?? {}),
   )
@@ -184,12 +288,17 @@ export const listMatches = createServerFn({ method: "GET" })
 
     // Fanout: matchs du jour + prochains matchs des grandes compétitions
     const dateOffsets = Array.from({ length: days }, (_, i) => i);
-    const dayCalls = sportsList.flatMap((s) => dateOffsets.map((off) => fetchEventsForSportDay(s.tsdb, isoDate(off))));
+    const dayCalls = sportsList.flatMap((s) =>
+      dateOffsets.map((off) => fetchEventsForSportDay(s.tsdb, isoDate(off))),
+    );
     const leagueCalls = leagues.map((l) => fetchNextEventsForLeague(l.id));
 
-    const results = await Promise.all([...dayCalls, ...leagueCalls]);
+    const [results, imported] = await Promise.all([
+      Promise.all([...dayCalls, ...leagueCalls]),
+      fetchImportedFixtures(data.sport, data.includeHistory === true),
+    ]);
     const raw = dedupe(results.flat());
-    const events = raw.map(mapEvent);
+    const events = dedupeSummaries([...imported, ...raw.map(mapEvent)]);
 
     // Filtre : futur proche (≤ 21j) ou en cours / juste fini (< 6h)
     const now = Date.now();
@@ -199,6 +308,7 @@ export const listMatches = createServerFn({ method: "GET" })
       if (!e.startTime) return true;
       const t = Date.parse(e.startTime);
       if (Number.isNaN(t)) return true;
+      if (data.includeHistory) return t > now - 120 * 86_400_000 && t < now + 90 * 86_400_000;
       return t > now - past && t < now + future;
     });
 
@@ -214,6 +324,43 @@ export const listMatches = createServerFn({ method: "GET" })
 export const getMatchDetail = createServerFn({ method: "GET" })
   .validator((input: unknown) => z.object({ matchId: z.string().min(1) }).parse(input))
   .handler(async ({ data }) => {
+    if (data.matchId.startsWith("db:")) {
+      const { createClient } = await import("@supabase/supabase-js");
+      const client = createClient(DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_PUBLISHABLE_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const { data: row, error } = await client
+        .from("sports_fixtures")
+        .select(
+          "id,provider,provider_fixture_id,competition_id,competition_name,home_score,away_score,starts_at,status,venue,home_team:sports_teams!sports_fixtures_home_team_id_fkey(name,logo_url),away_team:sports_teams!sports_fixtures_away_team_id_fkey(name,logo_url)",
+        )
+        .eq("id", data.matchId.slice(3))
+        .single();
+      if (error || !row) throw new Error("Match importé introuvable");
+      const imported = row as unknown as ImportedFixtureRow;
+      return {
+        match: {
+          id: data.matchId,
+          provider: imported.provider,
+          providerFixtureId: imported.provider_fixture_id,
+          sport: "soccer" as const,
+          sportLabel: "Football",
+          competition: imported.competition_name,
+          competitionId: imported.competition_id,
+          homeTeam: imported.home_team.name,
+          awayTeam: imported.away_team.name,
+          homeBadge: imported.home_team.logo_url,
+          awayBadge: imported.away_team.logo_url,
+          homeScore: imported.home_score == null ? null : String(imported.home_score),
+          awayScore: imported.away_score == null ? null : String(imported.away_score),
+          status: imported.status,
+          startTime: imported.starts_at,
+          venue: imported.venue,
+        },
+        description: null,
+        thumb: null,
+      };
+    }
     const url = `https://www.thesportsdb.com/api/v1/json/${TSDB_KEY}/lookupevent.php?id=${encodeURIComponent(data.matchId)}`;
     const json = await fetchJson<{ events: TsdbEvent[] | null }>(url);
     const raw = json?.events?.[0];

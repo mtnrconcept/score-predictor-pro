@@ -121,8 +121,8 @@ export async function buildPredictionEngineInput(
     );
     if (!resolution) return fallback;
     await db.from("fixture_provider_mappings").upsert({
-      provider: "thesportsdb",
-      provider_fixture_id: match.id,
+      provider: match.provider ?? "thesportsdb",
+      provider_fixture_id: match.providerFixtureId ?? match.id,
       fixture_id: resolution.id,
       resolution_confidence: resolution.confidence,
       manually_verified: false,
