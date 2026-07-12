@@ -6,12 +6,9 @@ import { searchMatchContext, formatSnippetsForPrompt } from "./firecrawl.server"
 import { fetchHeadToHead, getMatchDetail, type H2HStats } from "./matches.functions";
 import { buildPredictionEngineInput } from "./prediction-data.server";
 import { predictFootballMatch } from "./prediction-engine";
-import { resolveOpenAiModel } from "./openai-model";
 import { PredictionSchema, type Prediction } from "./prediction-schema";
 
 export type { Prediction } from "./prediction-schema";
-
-type QuotaResult = { allowed: boolean; used: number; limit: number; remaining: number };
 
 function formatH2H(h2h: H2HStats, homeTeam: string, awayTeam: string): string {
   if (!h2h.played) return "";
@@ -29,31 +26,13 @@ function formatH2H(h2h: H2HStats, homeTeam: string, awayTeam: string): string {
   ].join("\n");
 }
 
-async function consumeQuota(supabase: any): Promise<QuotaResult> {
-  const { data, error } = await supabase.rpc("consume_prediction_quota");
-  if (error) {
-    console.error("Prediction quota unavailable", { code: error.code });
-    throw new Error(
-      "Le contrôle de quota n'est pas disponible. Applique les migrations Supabase v0.4.0.",
-    );
-  }
-  const quota = data as QuotaResult;
-  if (!quota.allowed) {
-    throw new Error(
-      `Quota quotidien atteint (${quota.used}/${quota.limit}). Réessaie demain ou augmente ton offre.`,
-    );
-  }
-  return quota;
-}
-
 export const generatePrediction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
     z.object({ matchId: z.string().min(1), force: z.boolean().optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const db = supabaseAdmin as any;
+    const db = context.supabase as any;
 
     if (!data.force) {
       const { data: cached } = await db
@@ -82,119 +61,79 @@ export const generatePrediction = createServerFn({ method: "POST" })
         "Le moteur quantitatif v0.4.0 est actuellement calibré pour le football uniquement.",
       );
     }
-    const { generateOpenAiPrediction, resolveOpenAiApiKey } = await import("./openai.server");
-    const apiKey = await resolveOpenAiApiKey(context.userId);
-    const quota = await consumeQuota(context.supabase as any);
+    const teamsQuery = `${match.homeTeam} vs ${match.awayTeam}`;
+    const [h2h, newsGeneral, newsInjuries, newsFormHome, newsFormAway, newsH2H] = await Promise.all(
+      [
+        fetchHeadToHead(data.matchId, match.homeTeam, match.awayTeam),
+        searchMatchContext(`${teamsQuery} ${match.competition} preview`, { limit: 4 }),
+        searchMatchContext(
+          `${match.homeTeam} ${match.awayTeam} blessures suspensions absents compositions probables`,
+          { limit: 4 },
+        ),
+        searchMatchContext(`${match.homeTeam} forme actuelle derniers matchs résultats xG`, {
+          limit: 3,
+        }),
+        searchMatchContext(`${match.awayTeam} forme actuelle derniers matchs résultats xG`, {
+          limit: 3,
+        }),
+        searchMatchContext(`${teamsQuery} confrontations historique buteurs statistiques`, {
+          limit: 4,
+        }),
+      ],
+    );
+    const newsContext = formatSnippetsForPrompt([
+      ...newsGeneral,
+      ...newsInjuries,
+      ...newsFormHome,
+      ...newsFormAway,
+      ...newsH2H,
+    ]);
+    const h2hContext = formatH2H(h2h, match.homeTeam, match.awayTeam);
+    const engineInput = await buildPredictionEngineInput(match, h2h, context.supabase);
+    const statistical = predictFootballMatch(engineInput);
+    const matchContext = [
+      `Sport : ${match.sportLabel}`,
+      `Compétition : ${match.competition}`,
+      `Match : ${match.homeTeam} vs ${match.awayTeam}`,
+      match.venue ? `Lieu : ${match.venue}` : "",
+      match.startTime ? `Date : ${match.startTime}` : "",
+      match.status ? `Statut : ${match.status}` : "",
+      detail.description ? `Contexte : ${detail.description.slice(0, 800)}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
 
-    const { data: run, error: runError } = await db
-      .from("prediction_runs")
-      .insert({
-        user_id: context.userId,
-        match_id: data.matchId,
-        status: "running",
-        model: resolveOpenAiModel(process.env.OPENAI_MODEL),
-        engine_version: "0.4.0",
-      })
-      .select("id")
-      .single();
-    if (runError) console.error("Unable to create prediction audit run", { code: runError.code });
-    const runId = run?.id as string | undefined;
-
-    try {
-      const teamsQuery = `${match.homeTeam} vs ${match.awayTeam}`;
-      const [h2h, newsGeneral, newsInjuries, newsFormHome, newsFormAway, newsH2H] =
-        await Promise.all([
-          fetchHeadToHead(data.matchId, match.homeTeam, match.awayTeam),
-          searchMatchContext(`${teamsQuery} ${match.competition} preview`, { limit: 4 }),
-          searchMatchContext(
-            `${match.homeTeam} ${match.awayTeam} blessures suspensions absents compositions probables`,
-            { limit: 4 },
-          ),
-          searchMatchContext(`${match.homeTeam} forme actuelle derniers matchs résultats xG`, {
-            limit: 3,
-          }),
-          searchMatchContext(`${match.awayTeam} forme actuelle derniers matchs résultats xG`, {
-            limit: 3,
-          }),
-          searchMatchContext(`${teamsQuery} confrontations historique buteurs statistiques`, {
-            limit: 4,
-          }),
-        ]);
-      const newsContext = formatSnippetsForPrompt([
-        ...newsGeneral,
-        ...newsInjuries,
-        ...newsFormHome,
-        ...newsFormAway,
-        ...newsH2H,
-      ]);
-      const h2hContext = formatH2H(h2h, match.homeTeam, match.awayTeam);
-      const engineInput = await buildPredictionEngineInput(match, h2h);
-      const statistical = predictFootballMatch(engineInput);
-      const matchContext = [
-        `Sport : ${match.sportLabel}`,
-        `Compétition : ${match.competition}`,
-        `Match : ${match.homeTeam} vs ${match.awayTeam}`,
-        match.venue ? `Lieu : ${match.venue}` : "",
-        match.startTime ? `Date : ${match.startTime}` : "",
-        match.status ? `Statut : ${match.status}` : "",
-        detail.description ? `Contexte : ${detail.description.slice(0, 800)}` : "",
-      ]
-        .filter(Boolean)
-        .join("\n");
-
-      const prediction = await generateOpenAiPrediction({
-        apiKey,
-        userId: context.userId,
+    const { data: generated, error } = await context.supabase.functions.invoke("prediction-ai", {
+      body: {
+        matchId: data.matchId,
+        sport: match.sport,
         matchContext,
         newsContext,
         headToHeadContext: h2hContext,
+        headToHeadStats: {
+          homeWinRate: h2h.homeWinRate,
+          awayWinRate: h2h.awayWinRate,
+          drawRate: h2h.drawRate,
+          matchesAnalyzed: h2h.played,
+        },
         statistical,
-      });
-
-      prediction.headToHead = {
-        ...prediction.headToHead,
-        homeWinRate: h2h.homeWinRate,
-        awayWinRate: h2h.awayWinRate,
-        drawRate: h2h.drawRate,
-        matchesAnalyzed: h2h.played,
-      };
-      const generatedAt = new Date();
-      await db.from("predictions_cache").upsert({
-        match_id: data.matchId,
-        sport: match.sport,
-        prediction,
-        model_version: "0.4.0",
-        data_quality: statistical.dataQuality,
-        abstained: statistical.abstention.shouldAbstain,
-        generated_at: generatedAt.toISOString(),
-        expires_at: new Date(generatedAt.getTime() + 30 * 60_000).toISOString(),
-      });
-      if (runId)
-        await db
-          .from("prediction_runs")
-          .update({
-            status: statistical.abstention.shouldAbstain ? "abstained" : "completed",
-            data_quality: statistical.dataQuality,
-            abstention_reasons: statistical.abstention.reasons,
-            input_snapshot: { match: matchContext, statistical },
-            result: prediction,
-            completed_at: new Date().toISOString(),
-          })
-          .eq("id", runId);
-
-      return { prediction, cached: false, quota };
-    } catch (error) {
-      if (runId)
-        await db
-          .from("prediction_runs")
-          .update({
-            status: "failed",
-            error_code: error instanceof Error ? error.name : "unknown",
-            completed_at: new Date().toISOString(),
-          })
-          .eq("id", runId);
-      throw error;
+      },
+    });
+    if (error) {
+      const response = (error as { context?: Response }).context;
+      let backendMessage: string | undefined;
+      if (response) {
+        try {
+          const payload = await response.clone().json();
+          backendMessage = typeof payload?.error === "string" ? payload.error : undefined;
+        } catch {
+          // Ignore non-JSON gateway responses.
+        }
+      }
+      throw new Error(backendMessage || "Le service de pronostic IA est indisponible.");
     }
+    const prediction = PredictionSchema.parse(generated?.prediction);
+    return { prediction, cached: false, quota: generated?.quota ?? null };
   });
 
 export const savePrediction = createServerFn({ method: "POST" })

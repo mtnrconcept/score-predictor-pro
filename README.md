@@ -19,6 +19,8 @@ Application TanStack Start de pronostics football combinant un moteur statistiqu
 
 1. `import-football` importe les rencontres et, à la demande, les statistiques, xG, compositions et blessures.
    `import-public-football` complète gratuitement le calendrier avec les compétitions ESPN publiques.
+   `prediction-ai` exécute la génération OpenAI et les écritures privilégiées dans Supabase : Vercel
+   n'a besoin d'aucune clé de rôle service.
 2. La résolution d'entités rapproche une rencontre TheSportsDB de son équivalent canonique.
 3. `prediction-engine.ts` calcule les probabilités, scores et incertitudes sans IA générative.
 4. OpenAI explique les résultats avec un schéma strict. Les valeurs quantitatives sont réinjectées après la réponse afin que le modèle ne puisse pas les modifier.
