@@ -1,4 +1,4 @@
-project_id = "snzepjldrtojbvrfyjtw"
+project_id = "score-predictor-pro"
 
 [functions.import-football]
 verify_jwt = false

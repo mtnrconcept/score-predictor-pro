@@ -34,16 +34,22 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
 }
 
 function createSupabaseAdminClient() {
-  const SUPABASE_URL = process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL;
+  // The previous generic SUPABASE_* environment names are intentionally ignored.
+  // A future backend must be explicitly provisioned for Score Predictor so stale
+  // Vercel/Lovable variables cannot reconnect this app to the released project.
+  const SUPABASE_URL = process.env.SCORE_PREDICTOR_SUPABASE_URL || DEFAULT_SUPABASE_URL;
   const SUPABASE_SERVICE_ROLE_KEY =
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
+    process.env.SCORE_PREDICTOR_SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SCORE_PREDICTOR_SUPABASE_SECRET_KEY;
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     const missing = [
-      ...(!SUPABASE_URL ? ["SUPABASE_URL"] : []),
-      ...(!SUPABASE_SERVICE_ROLE_KEY ? ["SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY"] : []),
+      ...(!SUPABASE_URL ? ["SCORE_PREDICTOR_SUPABASE_URL"] : []),
+      ...(!SUPABASE_SERVICE_ROLE_KEY
+        ? ["SCORE_PREDICTOR_SUPABASE_SERVICE_ROLE_KEY or SCORE_PREDICTOR_SUPABASE_SECRET_KEY"]
+        : []),
     ];
-    const message = `Missing Supabase environment variable(s): ${missing.join(", ")}. Connect Supabase in Lovable Cloud.`;
+    const message = `Missing Score Predictor Supabase environment variable(s): ${missing.join(", ")}. Provision a dedicated backend before enabling server data access.`;
     console.error(`[Supabase] ${message}`);
     throw new Error(message);
   }
